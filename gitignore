@@ -1,0 +1,69 @@
+# =========================================================
+# Python
+# =========================================================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Test / coverage / tooling cache
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# =========================================================
+# IDE / OS
+# =========================================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# =========================================================
+# Raw video / large media
+# =========================================================
+data/raw/*
+!data/raw/.gitkeep
+
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+
+# =========================================================
+# Model files / checkpoints
+# Future-proof: MVP may not use them yet
+# =========================================================
+models/
+weights/
+checkpoints/
+
+*.pt
+*.pth
+*.onnx
+*.engine
+*.tflite
+*.ckpt
+
+# =========================================================
+# Generated analysis outputs
+# =========================================================
+outputs/*
+!outputs/.gitkeep
+
+# Optional generated artifacts outside outputs/
+*.log
+
+# =========================================================
+# Temporary files
+# =========================================================
+tmp/
+temp/
+*.tmp

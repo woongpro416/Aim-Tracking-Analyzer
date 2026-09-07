@@ -7,19 +7,21 @@
 이 프로젝트의 목적은 게임 전체 상황 판단 AI를 만드는 것이 아니다.  
 **통제된 영상 환경에서 Detection → Tracking → Time-series Metrics → Validation → Report 흐름을 끝까지 구현하는 것**에 집중한다.
 
+에임 연습은 Tracking과 Flick Shot으로 나눌 수 있으며 두 유형은 분석 목적과 Metric이 다르다. 현재 프로젝트는 그중 **Tracking Analysis Only**를 MVP로 선택한다. Flick Shot은 MVP에 포함하지 않고 Future Extension으로만 다룬다.
+
 포트폴리오 관점의 핵심 질문은 다음과 같다.
 
 > 영상에서 타깃 위치를 안정적으로 검출할 수 있는가?  
 > 프레임별 Detection을 시간축 Trajectory로 변환할 수 있는가?  
 > 조준 오차를 X/Y 축과 시간축 관점에서 정량화할 수 있는가?  
 > 방향전환 이후 Tracking이 다시 안정되는 데 얼마나 걸리는가?  
-> 두 세션의 차이를 Raw Metric으로 재현 가능하게 비교할 수 있는가?
+> 같은 Scenario에 속한 Run의 차이를 Raw Metric으로 재현 가능하게 비교할 수 있는가?
 
 ---
 
 # 1. 프로젝트 한 줄 정의
 
-**에임 연습 영상을 입력받아 타깃 궤적을 추출하고, Tracking Error와 방향전환 회복 지표를 계산하여 두 세션의 움직임 차이를 정량적으로 비교하는 Vision 기반 Video Motion Analyzer.**
+**에임 연습 영상을 입력받아 타깃 궤적을 추출하고, Tracking Error와 방향전환 회복 지표를 계산하여 같은 Scenario에 속한 Run의 움직임 차이를 정량적으로 비교하는 Vision 기반 Video Motion Analyzer.**
 
 ---
 
@@ -27,7 +29,9 @@
 
 ## 2.1 MVP 목표
 
-영상 1개를 입력하면 다음 결과를 생성한다.
+현재 MVP의 범위는 **Tracking Analysis Only**다.
+
+Run 영상 1개를 입력하면 다음 결과를 생성한다.
 
 1. MP4 영상 프레임 Decode
 2. 단일 타깃 중심 좌표 추출
@@ -46,7 +50,7 @@ MVP의 핵심은 **Metric 수를 많이 만드는 것보다 각 Metric을 검증
 ## 2.2 최종 출력 예시
 
 ```text
-[Tracking Summary]
+[Run Tracking Summary]
 
 Mean Tracking Error: 22.8 px
 RMSE X: 17.4 px
@@ -61,7 +65,7 @@ Direction-change Recovery Latency
 Detection Coverage: 98.1%
 
 [Comparison]
-Session B는 Session A보다
+Run B는 Run A보다
 - Mean Error 11.3% 감소
 - Vertical RMSE 18.7% 감소
 - Vertical Recovery Latency 24 ms 감소
@@ -71,8 +75,37 @@ Session B는 Session A보다
 
 # 3. 프로젝트 범위
 
+## Aim Practice 영역 구분
+
+```text
+Aim Practice
+├── Tracking
+│   ├── Continuous Target Following
+│   ├── Mean Tracking Error
+│   ├── RMSE X/Y
+│   ├── On-target Ratio
+│   ├── Direction Change
+│   └── Recovery Latency
+│
+└── Flick Shot
+    ├── Target Acquisition
+    ├── Acquisition Time
+    ├── Initial Aim Error
+    ├── Overshoot / Undershoot
+    ├── Correction Count
+    ├── Time to Hit
+    └── Hit Rate
+```
+
+Tracking은 **움직이는 Target을 지속적으로 얼마나 안정적으로 따라가는가**를 분석한다.
+
+Flick Shot은 **새 Target이 나타났을 때 얼마나 빠르고 정확하게 획득하는가**를 분석한다.
+
+Tracking은 continuous time-series 분석, Flick Shot은 event-based target acquisition 분석에 가깝다. 따라서 두 유형을 같은 Metric 체계로 평가하지 않는다.
+
 ## 포함
 
+- Tracking Analysis Only
 - 에임 연습 프로그램 녹화 영상
 - 단일 타깃 Tracking
 - 화면 중앙 고정 Crosshair 가정
@@ -84,7 +117,7 @@ Session B는 Session A보다
 - On-target Ratio
 - 방향전환 Event Detection
 - Tracking Recovery Latency
-- 세션 2개 비교
+- 같은 Scenario에 속한 Run 비교
 - CSV / JSON / PNG / Markdown 결과 생성
 - pytest Unit Test
 - Synthetic Trajectory Test
@@ -104,6 +137,44 @@ Session B는 Session A보다
 - 강화학습
 - 모델 직접 학습
 - 실시간 Streaming 분석
+- Flick Shot Analyzer 및 Flick 전용 Metric
+- 고정 Benchmark 또는 다른 사용자 Population을 이용한 절대 평가
+
+## 데이터 구조
+
+```text
+Aim Type
+→ Scenario
+→ Run
+→ Run Metadata
+→ Run Metrics
+```
+
+- **Aim Type**: Tracking 또는 Flick Shot과 같은 상위 에임 연습 유형. 현재 MVP는 Tracking만 지원한다.
+- **Scenario**: Smooth Tracking, Reactive Tracking, Vertical Tracking과 같이 사용자가 선택하는 에임 연습 카테고리다.
+- **Run**: Scenario에 추가되는 독립된 영상 하나다. MVP에서는 `Run 1개 = Video File 1개`다.
+- **Run Metadata**: date, resolution, fps, dpi, sensitivity, warmup, notes와 같은 입력·환경 정보다.
+- **Run Metrics**: 영상 분석으로 생성된 Mean Error, RMSE, Recovery Latency 등의 측정 결과다.
+
+`Session`과 `Condition`은 현재 데이터 계층으로 사용하지 않는다.
+
+## Metric 비교 상태
+
+```text
+incompatible:
+두 Run 모두 해당 Metric은 계산되었지만
+척도 또는 전제조건 차이로 직접 비교할 수 없음
+
+warning:
+Metric 비교는 가능하지만
+정밀도 또는 해석에 주의가 필요함
+
+unavailable:
+특정 Run에서 해당 Metric 자체를
+신뢰성 있게 계산할 수 없음
+```
+
+이 단계에서는 상태의 의미만 확정한다. 한쪽 Metric이 `unavailable`이거나 비교 가능한 Metric이 없을 때의 Comparison Result Contract는 Phase 6에서 정의한다.
 
 ---
 
@@ -179,11 +250,12 @@ Comparison Report
 ```text
 V0: OpenCV Detection + Trajectory + Basic Metrics
 V1: Direction-change Event + Recovery Latency + Validation
-V2: Session Comparison + Portfolio Report
-V3: Optional YOLO / API / LLM Extension
+V2: Scenario-level Run Comparison + Portfolio Report
+V3: Optional AI Run Pattern Analysis
+V4: Optional YOLO / API / LLM Extension
 ```
 
-MVP 완료 전에는 V3 기능을 시작하지 않는다.
+MVP 완료 전에는 V3와 V4 기능을 시작하지 않는다.
 
 ---
 
@@ -228,8 +300,8 @@ aim-video-analyzer/
 │
 ├── data/
 │   ├── raw/
-│   │   ├── session_a.mp4
-│   │   └── session_b.mp4
+│   │   ├── run_001.mp4
+│   │   └── run_002.mp4
 │   └── synthetic/
 │
 ├── src/
@@ -588,7 +660,7 @@ Mean Absolute Jerk
 P90 Jerk
 ```
 
-정도를 **개인 세션 간 비교 지표**로만 사용한다.
+정도를 **같은 Scenario의 Run 간 비교 지표**로만 사용한다.
 
 ---
 
@@ -615,27 +687,23 @@ Clockwise / Counter-clockwise
 
 ---
 
-# 22. 첫 사용자 실험
+# 22. 첫 사용자 비교
 
-포트폴리오 MVP에서는 실험을 단순하게 유지한다.
-
-## Session A
-
-기본 조건에서 동일 Tracking Scenario 5회.
-
-## Session B
-
-한 가지 조건만 변경한 뒤 동일 Tracking Scenario 5회.
+포트폴리오 MVP에서는 같은 Tracking Scenario에 영상을 Run 단위로 추가하고 각 Run의 분석 결과를 비교한다.
 
 예:
 
 ```text
-Warm-up 없음
-vs
-Figure-8 Warm-up 2분
+Aim Type: Tracking
+└── Scenario: Smooth Tracking
+    ├── Run 001 → Video 1개 → Run Metrics
+    ├── Run 002 → Video 1개 → Run Metrics
+    └── Run 003 → Video 1개 → Run Metrics
 ```
 
-비교:
+각 Run은 독립적으로 분석하며 서로 다른 Run의 Frame-level Trajectory를 연결하지 않는다. 현재 MVP에서는 여러 Run을 다시 평균내는 별도 Summary를 만들지 않는다.
+
+비교 Metric 후보:
 
 ```text
 Mean Error
@@ -646,7 +714,20 @@ Horizontal Recovery Latency
 Vertical Recovery Latency
 ```
 
-한 번의 Run 차이보다 여러 Run의 평균을 비교한다.
+## 분석 수준 구분
+
+Tracking 프로젝트의 분석 수준은 다음과 같다.
+
+1. **Run-level Analysis**
+   - 한 영상 내부의 Frame, Trajectory, Tracking Metric 분석
+   - Error Timeline
+   - Direction Change Event
+   - Recovery Latency
+2. **Scenario-level Run Comparison**
+   - 같은 Scenario에 속한 여러 Run의 Metric 비교
+   - Run Metadata 차이를 함께 확인하되 원인을 인과관계로 확정하지 않음
+
+필요하면 향후 Scenario-level Trend 또는 평균으로 확장할 수 있으나 현재 MVP에는 포함하지 않는다.
 
 ---
 
@@ -662,7 +743,7 @@ Vertical Recovery Latency
 한 번에 하나의 변수만 변경
 각 조건 반복 측정
 순서 효과 최소화
-Session Metadata 저장
+Run Metadata 저장
 ```
 
 목표는 “최적 감도 자동 추천”이 아니라 **조건 변화에 따라 Raw Metric이 어떻게 변했는지 비교**하는 것이다.
@@ -792,18 +873,18 @@ Screen Center
 선택:
 
 ```text
-Session A vs Session B comparison chart
+같은 Scenario의 Run comparison chart
 ```
 
 ---
 
-# 29. Session Metadata
+# 29. Run Metadata
 
-각 분석 실행은 영상과 함께 최소한 다음 정보를 저장한다.
+각 Run은 영상 및 환경 정보인 Run Metadata를 가진다. 분석으로 생성되는 Run Metrics는 Metadata와 분리한다.
 
 ```json
 {
-  "session_id": "session_a",
+  "run_id": "run_001",
   "scenario": "smooth_tracking",
   "resolution": "1920x1080",
   "recording_fps": 60,
@@ -814,25 +895,38 @@ Session A vs Session B comparison chart
 }
 ```
 
-세션 비교에서 바뀐 조건을 추적할 수 있어야 한다.
+`date`도 Run Metadata에 포함하지만 type, 형식, timezone은 해당 Contract를 설계하는 Phase에서 결정한다.
+
+Run 비교에서 Metadata 차이를 확인할 수 있어야 한다. Sensitivity, Warm-up, Date 등의 차이는 비교 자체를 차단하지 않으며, 차이로부터 Metric 변화의 원인을 확정하지 않는다.
 
 ---
 
-# 30. 권장 녹화 환경
+# 30. 권장 녹화 환경과 비교 정책
 
-가능하면 다음 조건을 고정한다.
+MVP의 Recommended Recording Profile:
 
 ```text
-Resolution: fixed
-Recording FPS: 60 이상
-Scenario: fixed
-Target Color: fixed
-Background: fixed
-DPI: recorded
-Sensitivity: recorded
+Resolution: 1920 × 1080
+Recording FPS: nominal 60 FPS
 ```
 
-실험마다 여러 변수를 동시에 바꾸지 않는다.
+이는 입력 허용 조건이 아니다. 다른 Resolution 또는 FPS의 영상도 Decode가 가능하면 입력 자체를 거부하지 않으며, Metric 계산과 직접 비교 가능 여부는 Metric별 Preconditions로 판단한다.
+
+현재 확정된 정책:
+
+- 같은 Scenario의 Run Comparison은 Metadata가 달라도 허용
+- 다른 Scenario의 Run은 현재 MVP의 직접 비교 대상이 아님
+- Resolution이 다른 Run의 Mean Error, RMSE X, RMSE Y 직접 비교는 `incompatible`
+- FPS mismatch만으로 millisecond 단위 Recovery Latency 비교를 차단하지 않으며 temporal precision `warning`으로 취급
+- FPS Metadata가 잘못됐거나 Temporal Metric의 전제조건을 충족하지 못하면 해당 Run의 Temporal Metric은 `unavailable`
+
+현재 확정하지 않는 정책:
+
+- Resolution mismatch에서 Median Error, On-target Ratio, Detection Coverage, Vertical / Horizontal RMSE Ratio, Recovery Latency의 직접 비교 가능 여부
+- Temporal Metric을 `unavailable`로 판단하는 구체적인 FPS 또는 Metadata 조건
+- Frame Index / FPS 기반 timestamp와 Decoder timestamp 중 어떤 기준을 사용할지
+
+각 항목은 실제 Sample Video와 Validation 근거를 확인하면서 관련 Phase에서 결정한다. Timestamp 기준은 Phase 1 Video Reader의 Time Contract에서 정의한다.
 
 ---
 
@@ -856,7 +950,97 @@ YOLO Detector로 교체
 
 ---
 
-# 32. 향후 확장: API / UI / LLM
+# 32. 향후 확장
+
+## Flick Shot Analyzer
+
+Flick Shot은 현재 MVP가 아니라 후속 확장으로만 다룬다.
+
+공통으로 재사용 가능한 영역:
+
+- Video Reader
+- Timestamp
+- Coordinate System
+- Target Detection 일부
+- Run Metadata
+- Validation Infrastructure
+- Visualization Base
+
+Tracking 전용 분석:
+
+- Continuous Trajectory
+- Mean Tracking Error
+- RMSE X/Y
+- On-target Ratio
+- Direction-change Recovery Latency
+
+Flick 전용 분석 후보:
+
+- Target Appearance Event
+- Target Acquisition Time
+- Initial Aim Error
+- Overshoot / Undershoot
+- Correction Count
+- Time to Hit
+- Hit Rate
+
+Flick Metric의 세부 Operational Definition은 현재 프로젝트에서 확정하지 않는다. 후속 확장 시 별도로 설계한다.
+
+## AI Run Pattern Analysis
+
+AI Run Pattern Analysis는 현재 MVP가 아니라 검증된 Tracking 분석 결과를 활용하는 Post-MVP 선택 기능이다.
+
+AI Model의 기본 입력은 원본 영상이 아니라 **Validated Run Metrics**다.
+
+```text
+Computer Vision
+→ Trajectory
+→ Metric Calculation
+→ Known-value Test
+→ Synthetic Validation
+→ Manual Validation
+→ Validated Run Metrics
+→ AI Run Pattern Analysis
+```
+
+기본 데이터 범위는 같은 Scenario에 속한 Run이다. 다른 Scenario의 Run을 하나의 Dataset으로 합칠지는 후속 설계에서 결정한다.
+
+첫 번째 후보:
+
+```text
+Validated Run Metrics
+→ Feature Vector
+→ K-Means Clustering
+→ Similar Tracking Run Patterns
+```
+
+두 번째 Optional 후보:
+
+```text
+Past Run History
+→ Personal Run Pattern
+→ New Run
+→ Isolation Forest
+→ Model-relative Anomaly Pattern
+```
+
+AI는 원인을 진단하지 않고 검증된 Feature Pattern을 탐색한다. 가능한 해석은 특정 Run이 유사한 Metric Pattern으로 묶였거나, 새로운 Run이 기존 개인 Run 데이터와 비교해 모델 기준으로 이례적인 Feature 조합을 보였다는 수준으로 제한한다.
+
+다음 항목은 현재 확정하지 않는다.
+
+- Cluster 개수
+- Feature Scaling 방식
+- 최종 Feature 목록
+- 최소 Run 개수와 Dataset 크기
+- Isolation Forest 설정값
+- Cluster 이름과 의미
+- AI 성능 평가 기준
+- Scenario 간 통합 여부
+- Raw Trajectory 직접 학습
+- Supervised Classification
+- LSTM / Transformer / 1D CNN
+
+## API / UI / LLM
 
 MVP 이후 필요할 때만 추가한다.
 
@@ -925,12 +1109,12 @@ Error Timeline
 X/Y Comparison
 ```
 
-## Phase 6 — Session Comparison
+## Phase 6 — Scenario-level Run Comparison
 
 ```text
-Session A
+Run A
 vs
-Session B
+Run B
 ```
 
 ## Phase 7 — Portfolio Closing
@@ -950,7 +1134,7 @@ Demo Output
 다음 명령 하나로:
 
 ```bash
-python main.py --video data/raw/session_a.mp4
+python main.py --video data/raw/run_001.mp4
 ```
 
 아래를 생성한다.
@@ -978,11 +1162,23 @@ outputs/latest/
 3. Target을 놓치지 않고 몇 %의 Frame에서 검출했는가?
 4. Crosshair가 Target 범위 안에 있었던 비율은 얼마인가?
 5. 방향전환 이후 Tracking Error가 다시 감소하기까지 얼마나 걸렸는가?
-6. 두 Session의 Raw Metric은 어떻게 달라졌는가?
+6. 같은 Scenario의 Run 간 Raw Metric은 어떻게 달라졌는가?
 
 ---
 
 # 36. 테스트 전략
+
+숫자가 출력되는 것만으로 Metric을 신뢰하지 않는다. 최소 신뢰 근거를 다음 세 단계로 둔다.
+
+1. **Known-value Unit Test**
+   - 사람이 예상값을 계산할 수 있는 작은 Input으로 기본 Metric 공식 검증
+2. **Synthetic Trajectory Validation**
+   - 방향전환 시점과 Recovery Delay를 미리 알고 있는 데이터에서 Analyzer의 Known Value 복원 정도 확인
+3. **Manual Frame Validation**
+   - 실제 영상 일부 Frame의 Target 위치를 수동 확인
+   - Detection Coverage와 Centroid Error 검증
+
+`Known-value Test + Synthetic Validation + 실제 Frame 검증`이 모두 있어야 최소한 신뢰 가능한 Metric으로 판단한다.
 
 ## Unit Test
 
@@ -1121,6 +1317,45 @@ coverage
 
 처럼 계산 과정을 설명할 수 있는 값을 중심으로 한다.
 
+## Tracking과 Flick Shot을 분리한다
+
+```text
+Decision:
+MVP는 Tracking Analysis만 구현한다.
+
+Reason:
+Tracking과 Flick Shot은 목표와 분석 단위가 다르다.
+Tracking은 continuous time-series 분석이고,
+Flick은 event-based target acquisition 분석에 가깝다.
+두 영역을 동시에 구현하면 Metric 정의와 검증 범위가 불필요하게 커진다.
+
+Alternative:
+Tracking + Flick을 하나의 MVP에서 동시에 구현
+
+Trade-off:
+초기 기능 범위는 좁아지지만,
+Tracking Metric의 Operational Definition과 Validation에 더 집중할 수 있다.
+
+Future:
+공통 Video / Detection Layer를 재사용하여
+Flick Analyzer를 별도 분석 Module로 확장할 수 있다.
+```
+
+## 동일 사용자의 상대 비교를 우선한다
+
+현재 MVP에서는 절대적인 “좋은 에임 / 나쁜 에임” 기준을 만들지 않고 고정 Benchmark나 다른 사용자 Population과 비교하지 않는다.
+
+다음과 같이 관측된 Raw Metric에 근거한 표현을 우선한다.
+
+```text
+Run A 대비 감소 / 증가
+Horizontal 대비 Vertical Error가 큼
+이전 Run보다 감소 / 증가함
+특정 Metric이 상대적으로 커짐
+```
+
+근거 없이 “에임이 좋은 편이다”, “평균 이상이다”, “프로 수준이다”, “감도가 너무 높다”, “반응속도가 느리다”와 같은 표현을 사용하지 않는다.
+
 ---
 
 # 39. 프로젝트에서 피해야 할 것
@@ -1169,7 +1404,7 @@ Hits
 ```text
 어느 축에서 Error가 큰가?
 방향전환 후 언제 다시 Tracking이 안정되는가?
-두 Session에서 움직임 특성이 어떻게 달라졌는가?
+같은 Scenario의 Run에서 움직임 특성이 어떻게 달라졌는가?
 ```
 
 를 설명하는 것을 목표로 한다.
@@ -1191,7 +1426,7 @@ README와 면접에서는 다음 역량을 중심으로 보여준다.
 - Direction-change Event Detection
 - Synthetic Data Validation
 - Unit Test / pytest
-- Session Comparison
+- Scenario-level Run Comparison
 - Measurement와 Interpretation 책임 분리
 
 게임 도메인은 문제의 출발점으로 설명하되, 기술적 본체는:
@@ -1241,7 +1476,7 @@ Time-series Metrics
    ↓
 Validated Motion Analysis
    ↓
-Session Comparison
+Scenario-level Run Comparison
 ```
 
 최종적으로 다음 질문에 답하는 시스템을 목표로 한다.
@@ -1252,9 +1487,23 @@ Session Comparison
 
 > 같은 Scenario를 반복했을 때 결과가 재현되는가?
 
-> Session A와 Session B의 움직임 차이는 수치로 무엇인가?
+> 같은 Scenario의 Run A와 Run B의 움직임 차이는 수치로 무엇인가?
 
 > 내가 만든 Metric은 Synthetic Data에서도 의도한 값을 복원하는가?
+
+MVP 검증 이후의 선택적 확장 흐름:
+
+```text
+Validated Run Metrics
+   ↓
+Feature Vector
+   ↓
+Clustering or Anomaly Detection
+   ↓
+AI Run Pattern Analysis
+```
+
+이 흐름은 현재 MVP의 완료 조건이 아니며, 실제 Run 데이터와 검증된 Metric이 확보된 뒤 별도 Requirement / Contract를 작성한다.
 
 ---
 
@@ -1281,7 +1530,7 @@ Manual Detection Validation
 
 P4
 Visualization
-Session Comparison
+Scenario-level Run Comparison
 Markdown Report
 
 P5
@@ -1302,12 +1551,12 @@ P5까지 완료하면 포트폴리오용 MVP는 종료한다.
 
 이 프로젝트가 성공했다고 볼 수 있는 최소 조건:
 
-**사용자가 같은 Tracking Scenario의 영상 2개를 넣었을 때, 단순 점수 차이가 아니라 두 영상의 움직임 특성이 어떻게 달라졌는지를 검증 가능한 Raw Metric으로 설명할 수 있어야 한다.**
+**사용자가 같은 Tracking Scenario에 독립된 Run 영상을 추가했을 때, 단순 점수 차이가 아니라 각 Run의 움직임 특성이 어떻게 달라졌는지를 검증 가능한 Raw Metric으로 설명할 수 있어야 한다.**
 
 예:
 
 ```text
-Session A → Session B
+Run A → Run B
 
 Mean Error
 24.8 px → 21.2 px
@@ -1334,5 +1583,15 @@ Vertical Recovery Latency
 - pytest로 Metrics / Event Detection 검증
 - README에서 Architecture / Engineering Decision / Limitation 설명
 ```
+
+위 검증은 세 단계의 최소 신뢰 근거로 해석한다.
+
+```text
+Known-value Unit Test
+→ Synthetic Trajectory Validation
+→ Manual Frame Validation
+```
+
+결과 숫자가 정상적으로 출력되는 것만으로는 프로젝트의 분석 성공으로 판단하지 않는다.
 
 이 정도를 재현 가능하게 만들면 **기존 Detection 중심 포트폴리오와 차별화되는 Video Tracking + Time-series Analysis 미니 프로젝트**로 충분하다.
