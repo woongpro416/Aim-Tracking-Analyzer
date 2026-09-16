@@ -2,84 +2,213 @@
 
 ## Document Status
 
-- Status: Draft skeleton with confirmed Day 02 domain concepts
-- Last updated: 2026-09-10
-- Metric 공식, Threshold, 자료형 및 Schema는 아직 확정하지 않았다.
+- Status: Draft / Current Domain and Metric Source of Truth
+- Last updated: 2026-09-16 (Day 03)
+- Role: Run, Phase, Observation, Event와 Metric의 의미 및 보존 범위를 정의한다.
+- Rule: 공식, Threshold, 자료형과 Schema는 명시적으로 확정한 경우에만 사용한다.
 
 ## Data Hierarchy
 
 ```text
 Aim Type
 -> Scenario
+-> Recording Video
 -> Run
--> Run Metadata
--> Run Metrics
+-> Phase
+-> Event
+-> Metric
+-> Result
 ```
 
-- Run 한 개는 Video File 한 개다.
-- Run Metadata와 Run Metrics는 분리한다.
-- Session과 Condition은 현재 데이터 계층으로 사용하지 않는다.
+- 현재 MVP는 Tracking Aim Type만 지원한다.
+- Video File 한 개에는 분석 대상 Run이 정확히 한 개만 존재한다.
+- Run은 Scenario 안에서 독립적으로 분석한다.
+- 서로 다른 Run의 Frame-level Observation을 하나의 연속 Trajectory로 연결하지 않는다.
+- Run Metadata와 분석 결과는 구분한다.
 
-## Coordinate System
+## Runtime Data and Persistent Output
+
+Runtime Processing과 Persistent Internal Output을 구분한다.
+
+### Runtime
+
+```text
+Decoded Frame
+-> Frame-level Observation
+-> Phase / State
+-> Event
+-> Metric Aggregation
+```
+
+- Sampling하지 않고 Decode 가능한 모든 Frame을 순서대로 처리한다.
+- Frame마다 필요한 Target Observation, Phase, State와 Direction을 판단한다.
+- 분석 실행 중에는 Duration과 Event 계산에 필요한 시간 정보를 사용한다.
+
+### Normal Persistent Internal Output
+
+```text
+Run-level Result
+Phase-level Result
+Event-level Result
+Metric-level Result
+```
+
+정상 Output에 다음을 필수로 영구 저장하지 않는다.
+
+- Raw Frame 이미지 복제본
+- 모든 Frame Timestamp
+- 전체 구조화된 Frame-level Observation
+
+Frame-level Observation은 Validation 또는 Debugging 실행에서 선택적으로 생성할 수 있다. 저장된 결과만으로 새로운 Event나 Direction을 재계산해야 한다면 원본 Video를 다시 처리한다.
+
+## Recording Video and Run
+
+- Recording Video는 Run 전후의 여유 구간을 포함할 수 있다.
+- `Video Duration != Run Duration`이다.
+- 현재 Scenario의 Run Duration은 60초다.
+- Countdown의 `0` 시점이 Run Start Marker다.
+- Run Start는 Automatic Countdown Detection 또는 Manual Fallback으로 확정한다.
+- Run End는 Domain 기준으로 Run Start 이후 60초다.
+- 정확한 Frame/Timestamp Mapping은 Deferred한다.
+
+Run-level Internal Output은 다음 개념을 보존한다.
+
+- 원본 Recording과 Run의 관계
+- 독립 Run 식별
+- Recording 내부 Run Start와 Run End
+- Run Start 결정 방식
+- 필요한 Run Segment 처리 완전성
+
+Run ID 형식, Timestamp 자료형과 Status Schema는 Deferred한다.
+
+## Coordinate and Target Assumptions
 
 - Crosshair는 화면 정중앙에 고정되어 있다고 본다.
 - Screen Center를 Crosshair Position으로 사용한다.
-- 화면 좌표의 원점, 축 방향, 경계 포함 규칙은 Deferred한다.
+- 현재 Target은 하나의 유효 영역을 가진 단일 세로 타원형 Target이다.
+- On-target 판정에는 Target의 유효 영역이 필요하다.
+- Target 중심은 Direction 또는 Off-target Severity에 사용될 수 있지만 On-target 내부 품질 등급에는 사용하지 않는다.
+- 화면 원점, 축 방향, 경계 포함 규칙과 Target 영역 Validation은 Deferred한다.
 
-## Video and Frame Data
+## Run Phases
 
-- 최초 On-target 이전 구간과 Tracking 분석 구간을 구분한다.
-- 최초 On-target 이후의 On-target 및 Off-target Frame을 모두 분석에 사용한다.
-- Missing Frame은 Off-target Frame과 다르다.
-- Frame Index와 Timestamp Contract는 Deferred한다.
-
-## Scenario and Run
-
-- 각 Run은 독립적으로 분석한다.
-- 서로 다른 Run의 Frame-level Trajectory는 연결하지 않는다.
-- 같은 Scenario의 Run만 현재 MVP의 직접 비교 대상이다.
-- 별도 Scenario Summary와 Trend 판정은 현재 MVP에 포함하지 않는다.
-
-## Run Metadata
-
-Run Metadata의 최소 필수 Field와 각 자료형은 아직 확정하지 않았다.
-
-기존 후보에는 run ID, scenario, date, resolution, fps, sensitivity, dpi, warmup, notes가 있으나 Day 02에서 최종 Contract로 확정하지 않았다.
-
-## Target and Detection Data
-
-- 현재 대상은 하나의 유효 영역을 가진 단일 세로 타원형 Target이다.
-- On-target는 Crosshair가 Target 유효 영역 내부에 있는 상태다.
-- Off-target는 Target이 관측되었고 Crosshair가 Target 유효 영역 외부에 있는 상태다.
-- Target 중심은 Relative Direction 또는 Off-target Severity 계산에 필요할 수 있지만, On-target 내부 품질 등급에는 사용하지 않는다.
-- Target 영역, 중심, 경계의 Detection 및 Validation 방법은 Deferred한다.
-
-## Timestamp
-
-- Event와 Metric 근거는 Frame 또는 Timestamp 수준으로 추적 가능해야 한다.
-- Decoder Timestamp와 Frame Index / FPS 계산 중 어떤 기준을 사용할지는 Deferred한다.
-
-## Trajectory Data
-
-현재 필요한 논리적 흐름은 다음과 같다.
+### Initial Acquisition
 
 ```text
-Video
--> Frame / Timestamp
--> Target Observation
--> On-target / Off-target / Missing State
--> Target Movement Direction
--> Relative Target Direction for applicable Event context
--> Event
--> Metric
--> Summary
+Run Start -> First On-target
 ```
 
-`Target Movement Direction`과 `Relative Target Direction`은 별도로 기록하고 별도로 집계한다. 두 Direction을 조합한 8 x 8 결과는 만들지 않는다.
+- Run 시작 후 최초 Target 획득 과정이다.
+- Target 밖에 있는 상태를 Tracking Maintenance의 Off-target Event와 동일하게 처리하지 않는다.
+- Phase의 Frame-level 근거는 Runtime에서 처리하지만 정상 Output에는 집계된 Phase 결과를 보존한다.
+- Acquisition Metric의 최종 목록과 공식은 Deferred한다.
 
-정확한 Row Schema, Field 이름, 자료형은 Deferred한다.
+### Tracking Maintenance
 
-## Run Metrics
+```text
+First On-target -> Run End
+```
+
+- 최초 획득 이후 On-target 유지, Off-target, Re-entry와 Tracking Recovery를 분석하는 Phase다.
+- First On-target이 관측되지 않으면 이 Phase는 존재하지 않을 수 있다.
+- Observation 부족으로 First On-target 판단이 불가능한 경우에는 단순한 Phase 부재와 구분한다.
+
+### First On-target Result
+
+최소한 다음 의미를 구분한다.
+
+- First On-target observed
+- 충분한 관측이 있었지만 Run 종료까지 not observed
+- Observation 부족 또는 Missing으로 indeterminate
+
+정확한 상태 자료형과 판단 Coverage Threshold는 Deferred한다.
+
+## Phase-level Persistent Result
+
+각 Phase에 대해 다음 개념을 확인할 수 있어야 한다.
+
+- Phase 존재 또는 판단 상태
+- Phase 시간 범위 또는 Duration
+- First On-target 판단 결과
+- Valid Observation 규모
+- Missing Observation 또는 Coverage 규모
+- Direction별 Valid Observation
+- Phase가 없거나 판단 불가능한 경우 Domain Reason
+
+Count, Duration 또는 Ratio 중 어떤 표현을 사용할지는 Deferred한다. Coverage는 관측 가능 범위이지 Detection 정확도를 의미하지 않는다.
+
+## Observation and Tracking State
+
+### Valid Observation
+
+- Metric이나 Event 판단에 사용할 수 있는 Observation이다.
+- Valid Observation의 정확한 전제조건과 최소 Sample은 관련 Metric을 구현할 때 결정한다.
+
+### Missing
+
+- 특정 Frame 또는 Timestamp에 필요한 원본 Observation이 없는 상태다.
+- Missing은 Off-target로 변환하지 않는다.
+- Missing 누적은 Phase 판단 또는 Metric 계산을 `unavailable`로 만드는 원인이 될 수 있다.
+
+### Tracking Maintenance State
+
+- `On-target`: Crosshair가 Target 유효 영역 내부
+- `Off-target`: Target이 관측되었고 Crosshair가 Target 유효 영역 외부
+- `Missing`: 필요한 Target Observation이 없음
+
+Initial Acquisition에서 Target 밖에 있는 Observation은 위치 관계가 유사하더라도 Tracking Maintenance의 Off-target Event와 같은 의미가 아니다.
+
+## Direction Data
+
+### Target Movement Direction
+
+Target 영상이 시간에 따라 screen-space에서 이동하는 방향이다.
+
+### Relative Target Direction
+
+Target이 Crosshair를 기준으로 위치한 방향이다. Tracking에서는 우선 Off-target 상태의 방향 문맥에 사용한다.
+
+### Direction Rules
+
+- 두 Direction은 별도 축으로 보존하고 별도로 집계한다.
+- 두 축을 결합한 8 x 8 결과는 MVP에서 생성하지 않는다.
+- 두 축은 각각 8개 Direction Category를 사용하는 방향으로 둔다.
+- 정확한 Angle Boundary, Noise, 정지·저속 처리와 Event별 Direction 귀속은 Deferred한다.
+- Initial Acquisition과 Tracking Maintenance의 Direction Valid Observation을 구분할 수 있어야 한다.
+- Target Observation은 유효하지만 Direction은 판정 불가능한 경우의 표현은 Deferred한다.
+
+## Event Data
+
+### Persistence Decision
+
+- Operational Definition이 확정되어 Runtime에서 생성되는 Event는 개별 Event 결과를 정상 Internal Output에 영구 보존한다.
+- 모든 미래 Event 종류를 현재 확정하지 않는다.
+- Frame-level Observation이 아니라 의미 있는 상태 변화로 압축된 Event 결과를 보존한다.
+
+### Event Context Requirement
+
+개별 Event는 최소한 다음 의미를 구분할 수 있어야 한다.
+
+- 어떤 Run에 속하는가
+- 어떤 Phase에서 발생했는가
+- Event 종류는 무엇인가
+- Event Duration은 얼마인가
+- Run 내부에서 어떤 순서로 발생했는가
+- Run 내부의 시간적 위치 또는 시간 범위는 무엇인가
+- Event에 필요한 Direction 문맥이 있는가
+
+Event ID 형식, Sequence 표현, Start/End Timestamp 자료형, JSON Schema와 DB 구조는 Deferred한다.
+
+### Current Event Concepts
+
+- Off-target Event
+- Off-target Re-entry
+- Direction Change Event
+- Direction-change Recovery 관련 Event
+
+위 개념 중 정확한 시작/종료 조건과 공식이 확정되지 않은 항목은 구현 Contract가 아니라 Deferred 개념이다.
+
+## Metric Responsibilities
 
 ### Removed in Their Previous Meaning
 
@@ -93,65 +222,89 @@ Video
 
 ### Confirmed Analysis Responsibilities
 
-- On-target 유지와 Off-target 발생 관측
-- Off-target Count와 Total Off-target Duration
-- Off-target 이탈 방향
-- Off-target 이탈 크기 정량화
+- On-target 유지 결과
+- Off-target Event Count
+- Total Off-target Duration
+- Off-target Direction
+- Off-target Severity 정량화 책임
 - Off-target Re-entry
 - Direction Change Event
 - Direction-change Recovery
 - Movement Direction별 결과
 - Relative Direction별 결과
-- 방향별 유효 관측량
+- Run/Phase/Direction별 Valid Observation
+- Phase별 Missing 또는 Coverage
 
-정식 Metric 이름과 최종 목록은 아직 확정하지 않는다.
+정식 Metric 이름, 공식과 최종 목록은 아직 확정하지 않는다.
 
-## Metric Preconditions
+## Metric Preconditions and Result States
 
-- Event Count가 `0`이 되려면 유효한 분석 대상과 관측 구간이 존재해야 한다.
-- 특정 방향의 결과를 관측된 `0`으로 해석하려면 그 방향의 유효 관측량이 0보다 커야 한다.
-- Event 기반 Average, Latency, Maximum은 계산 대상 Event가 존재해야 한다.
-- 시간 기반 Metric은 신뢰 가능한 Timestamp 전제조건을 충족해야 한다.
-- 구체적인 최소 Sample, Coverage 및 FPS 조건은 Deferred한다.
+### Zero
 
-## Missing and Invalid Data
+- 유효한 분석 대상과 관측 구간이 존재했지만 Event가 발생하지 않은 결과다.
+- Event Count와 Total Event Duration은 `0`이 될 수 있다.
+- 특정 방향의 관측된 `0`은 해당 방향의 Valid Observation이 존재해야 한다.
 
-- `Missing`: 특정 Frame 또는 Timestamp의 필요한 원본 관측값 부재
-- `invalid`: 입력 또는 값이 Contract를 위반함
-- Missing은 Off-target로 변환하지 않는다.
-- Video Open 실패와 Frame Decode 실패의 세부 Contract는 Deferred한다.
+### Unavailable
 
-## Metric Result States
+- Metric 계산에 필요한 데이터 또는 전제조건이 충족되지 않은 결과다.
+- Event 표본이 필요한 Average, Median, Maximum 또는 Latency는 Event가 없으면 `unavailable`일 수 있다.
+- Tracking Maintenance Phase가 없으면 관련 Metric은 `unavailable`이다.
+- 모든 unavailable Metric은 사용자 확인 가능한 Domain Reason을 가져야 한다.
+- 같은 원인이 여러 Metric에 영향을 주더라도 각 Metric에서 이유를 확인할 수 있어야 한다.
 
-- `0`: 유효한 관측 대상과 구간이 존재했지만 해당 Event가 발생하지 않음
-- `unavailable`: Metric 계산에 필요한 데이터 또는 전제조건이 충족되지 않음
-- Event가 없어 Event 기반 Average, Latency 또는 Maximum을 계산할 수 없는 경우도 `unavailable`로 처리한다.
-- `not applicable`은 별도 상태로 추가하지 않는다.
-- `unavailable` 이유를 별도로 제공할지는 아직 결정하지 않았다.
+### Invalid
 
-## Metric Comparison Status
+- 입력 또는 값이 Contract를 위반한 상태다.
+- 비지원 FPS와 여러 Run이 포함된 Video는 현재 확정된 invalid input 사례다.
 
-- `incompatible`: 두 Run 모두 Metric은 존재하지만 척도 또는 전제조건 차이로 직접 비교할 수 없음
-- `warning`: 비교는 가능하지만 정밀도 또는 해석에 주의가 필요함
-- `unavailable`: 특정 Run에서 해당 Metric을 신뢰성 있게 계산할 수 없음
+### Not Applicable
 
-기존 Mean Error와 RMSE X/Y의 Resolution mismatch 정책은 해당 Metric 제거로 대체되었다. 새 Off-target Severity의 비교 Preconditions는 Metric 정의 후 결정한다.
+- 별도 상태로 추가하지 않는다.
 
-## Open Questions
+## Run Comparison Data
 
-- 8개 Direction의 정확한 각도 Boundary
-- 정지 또는 저속 상태의 Direction 표현
-- Target Movement Direction과 Relative Target Direction 계산 방식
-- Tracking Off-target Event에 Relative Direction을 귀속하는 기준
-- Target 영역과 실제 Aim Trainer 판정 영역의 일치 여부
-- 짧은 1 Frame Off-target 처리
-- Off-target Severity를 Target Center 거리와 Target Boundary 거리 중 무엇으로 정의할지
-- Off-target Severity의 방향별 및 Run별 집계 방식
-- Direction-change Recovery Operational Definition
-- Off-target Re-entry Operational Definition
-- 방향전환 후 On-target가 유지된 경우 Recovery 결과
-- 각 Direction의 최소 유효 관측량
-- 각 Direction에 제공할 최종 Metric 목록
-- 길이가 다른 Run의 Count, Total, Rate 비교 정책
-- `unavailable` 이유 제공 여부
-- 최종 Output Schema와 Comparison Result Contract
+- Run은 먼저 독립적으로 분석한다.
+- 같은 Scenario의 Run Result를 나란히 비교할 수 있다.
+- Run 간 Frame-level Observation을 연결하지 않는다.
+- Raw Count와 Raw Duration을 보존하고 관련 Valid Observation을 함께 제공한다.
+- 방향별 시간 보정 Rate는 현재 MVP 필수 Metric이 아니다.
+- Single Run 결과에서 방향 간 우열이나 개인 성향을 자동 판정하지 않는다.
+- Personal Pattern, Normalization과 Trend는 Future Contract다.
+
+## Traceability and Recalculation Limits
+
+현재 필수 Traceability는 다음 범위다.
+
+```text
+Original Video
+-> Run
+-> Run Boundary
+-> Phase
+-> Event / Metric
+-> Result
+```
+
+- 개별 Event는 Run 내부 시간적 문맥을 보존하지만 원본 Frame으로 이동하는 기능은 필수가 아니다.
+- Frame-level Observation 없이 Event 정의나 Direction Boundary를 변경하여 재계산하는 기능은 보장하지 않는다.
+- 필요한 경우 원본 Video를 새로운 분석 로직으로 다시 처리한다.
+- Validation/Debugging 실행에서는 선택적인 Frame-level Artifact를 생성할 수 있다.
+
+## Deferred Decisions
+
+- exact Timestamp와 Frame Boundary 계산
+- 59.94 FPS와 Variable Frame Rate 처리
+- Video Open/Decode 실패와 정상 EOF Contract
+- First On-target Coverage Threshold
+- Valid Observation 및 Missing/Coverage 표현
+- 정확한 8방향 Angle Boundary
+- Direction Noise와 정지·저속 처리
+- 1 Frame Off-target 처리
+- Off-target Severity 공식과 이름
+- Direction-change Recovery와 Re-entry Operational Definition
+- Event별 Direction 귀속
+- 방향별 최소 Sample
+- 최종 Metric 목록
+- Acquisition Metric
+- Personal Pattern Analysis와 Trend
+- 전체 Output Schema, DB와 Version Migration

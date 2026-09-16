@@ -1,5 +1,9 @@
 # Vision 기반 Aim Tracking Analyzer 포트폴리오 미니 프로젝트 설계서
 
+> **Working Reference Notice — 2026-09-16**
+>
+> 이 문서는 초기 포트폴리오 설계와 사고 과정을 보존하는 Working Reference다. 현재 Requirement, Data/Metric 의미와 Architecture Decision은 `docs/01_requirements_and_contract.md`, `docs/02_data_and_metric_specification.md`, `docs/04_architecture_decision_records.md`를 Source of Truth로 사용한다. 아래의 Mean Error / RMSE 중심 초기 설계 등 일부 내용은 Day 02~03 결정으로 superseded되었다.
+
 ## 0. 문서 목적
 
 이 문서는 **Aim Lab, Kovaak's 또는 유사 에임 연습 프로그램의 녹화 영상을 입력하면, 단일 타깃의 화면상 궤적을 추출하고 조준 오차·축별 RMSE·On-target Ratio·방향전환 후 회복 지연을 정량화하여 비교 리포트를 생성하는 미니 프로젝트**의 설계서다.

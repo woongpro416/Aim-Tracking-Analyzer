@@ -1,5 +1,9 @@
 # Vision-based Aim Tracking Analyzer
 
+> **Working Reference Notice — 2026-09-16**
+>
+> 이 문서는 초기 Project Build 사고 과정과 계획을 보존하는 Working Reference다. 현재 Requirement, Data/Metric 의미와 Architecture Decision은 `docs/01_requirements_and_contract.md`, `docs/02_data_and_metric_specification.md`, `docs/04_architecture_decision_records.md`를 Source of Truth로 사용한다. 아래의 Mean Error / RMSE 중심 초기 설계 등 일부 내용은 Day 02~03 결정으로 superseded되었다.
+
 > **Project Build README — 설계·손코딩 중심 개발용**
 >
 > 이 문서는 최종 포트폴리오 README가 아니라, 프로젝트를 직접 설계하고 구현하기 위한 **Working README**다.  
