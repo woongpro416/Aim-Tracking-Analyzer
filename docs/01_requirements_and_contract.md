@@ -3,7 +3,7 @@
 ## Document Status
 
 - Status: Draft / Current Source of Truth
-- Last updated: 2026-09-16 (Day 03)
+- Last updated: 2026-09-16 (Day 04)
 - Role: 현재 MVP가 무엇을 만들고 어떤 입력과 결과를 지원하는지 정의한다.
 - Rule: 이 문서에서 확정하지 않은 Algorithm, Threshold, Schema, UI 및 구현 구조는 임의로 확정하지 않는다.
 - History: Day 01과 Day 02 Workflow는 당시의 판단을 보존하는 학습 기록이다. 충돌하는 경우 이 문서와 최신 ADR을 우선한다.
@@ -56,9 +56,24 @@ Aim Type
 
 ## Input Contract
 
+### System and Analysis Core Input Boundary
+
+최종 System Input은 Web Interface를 통한 단일 Video File Upload다. 최종 사용자가 Local Video Path를 직접 입력하지 않는다.
+
+```text
+Web Video Upload
+-> Server가 내부 분석 가능한 Temporary Local File 준비
+-> Local Video Path 생성
+-> Analysis Core에 전달
+```
+
+Local Video Path는 Server와 Analysis Core 사이의 내부 Input Contract다. Day 04에서 직접 사용하는 Local Video Path는 Web Upload Boundary를 개발 중 대신하며, Analysis Core의 실제 내부 Contract를 검증하기 위한 입력이다.
+
+Web Framework, Upload API와 Temporary File 처리의 구체적인 방식은 Deferred한다.
+
 ### Supported Input
 
-- 입력은 Aim Trainer Recording Video 한 개다.
+- System과 Analysis Core가 처리하는 분석 대상은 Aim Trainer Recording Video 한 개다.
 - 한 Video에는 분석 대상 Run이 정확히 한 개만 존재해야 한다.
 - 현재 MVP는 nominal 60 FPS Recording만 지원한다.
 - Crosshair는 화면 정중앙에 고정되어 있어야 한다.
@@ -255,6 +270,23 @@ Off-target Severity 공식, 1 Frame Off-target 처리와 Recovery Operational De
 
 Internal Analysis Output과 User-facing Summary를 구분한다.
 
+### Structured Analysis Result
+
+Structured Analysis Result는 기존 Internal Analysis Output의 canonical structured form이다. 새로운 별도 Output 계층을 만들지 않으며 기존 Run, Phase, Event와 Metric 계층의 의미와 Output Contract를 유지한다.
+
+```text
+Analysis Core
+-> Structured Analysis Result
+   |-> Web Response Representation
+   `-> TXT Report Representation
+```
+
+- Web Response와 TXT Report는 동일한 Structured Analysis Result에서 파생한다.
+- 각 Representation은 별도의 분석 계산을 수행하지 않는다.
+- TXT를 분석 결과의 원본으로 사용하거나 TXT를 다시 읽어 Web Result를 생성하지 않는다.
+- TXT Report는 Structured Analysis Result에서 생성하고 저장할 수 있어야 한다.
+- TXT 자동 생성 여부와 Web/TXT의 구체적인 표현 Contract는 Deferred한다.
+
 ### Internal Analysis Output
 
 정상적인 Run-level 분석 결과에는 최소한 다음 개념이 존재해야 한다.
@@ -354,7 +386,8 @@ Original Video
 - 절대적인 좋은 Aim / 나쁜 Aim 판정
 - 다른 사용자 Population 또는 고정 Benchmark 비교
 - Movement Direction과 Relative Direction의 8 x 8 조합 분석
-- YOLO, FastAPI, Web UI, LLM Coach와 Real-time Streaming
+- YOLO, LLM Coach와 Real-time Streaming
+- FastAPI와 Web UI의 구체적인 구현. Web Upload는 최종 System Boundary로 확정하지만 현재 Analysis Core 구현 범위에는 포함하지 않는다.
 - Database와 Version Migration
 
 ## Deferred Decisions
@@ -392,6 +425,9 @@ Original Video
 
 - User-facing Summary의 최종 최소 항목
 - 전체 JSON Schema, DB와 UI
+- Web Framework, Endpoint URL, HTTP Method, Multipart Field, FastAPI/Pydantic Schema와 HTTP Error Response
+- Upload Size Limit, 확장자 정책, Temporary Directory, File Naming, Delete Timing, 동시성, Streaming, Cloud Storage와 Security 구현
+- TXT Format, Filename, 저장 위치, Encoding, Template, 자동 생성 여부, Download 방식과 보관 기간
 - Personal Pattern Analysis, Trend와 AI Pattern Analysis Contract
 - Version Migration과 Requirement ID 체계
 

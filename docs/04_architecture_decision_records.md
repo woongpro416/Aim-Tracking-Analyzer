@@ -3,7 +3,7 @@
 ## Document Status
 
 - Status: Draft / Active Decision Log
-- Last updated: 2026-09-16 (Day 03)
+- Last updated: 2026-09-16 (Day 04)
 - Role: 여러 Requirement, Data, Test 또는 구현 Slice에 함께 영향을 주는 주요 결정을 기록한다.
 
 ## Decision Selection Criteria
@@ -28,6 +28,9 @@
 | Reduced Persistent Traceability Scope | Accepted | Day 03 |
 | Single Run Observation and Future Personal Pattern Separation | Accepted | Day 03 |
 | Per-Metric User-facing Unavailable Reason | Accepted | Day 03 |
+| User Input Contract and Analysis Core Input Contract Separation | Accepted | Day 04 |
+| Structured Analysis Result as Canonical Output | Accepted | Day 04 |
+| Vue 3 and Vite Frontend Stack | Accepted | Day 04 |
 
 ## Decision Records
 
@@ -320,3 +323,85 @@ Normalization, 최소 Run 수, Trend 기준, 통계 방식과 AI Pattern Analysi
 #### Deferred
 
 Reason Code, Enum, 사용자 문구와 내부 Debug 정보의 구조적 분리 및 Output Schema.
+
+### User Input Contract and Analysis Core Input Contract Separation
+
+#### Context
+
+Day 04에서는 실제 Video의 Local Path를 직접 사용하여 Analysis Core를 개발하고 검증하지만, 최종 서비스의 사용자 입력은 Web Interface를 통한 Video Upload다.
+
+#### Decision
+
+- 최종 사용자 입력은 Web Video Upload다.
+- 최종 사용자는 Local Video Path를 직접 입력하지 않는다.
+- Server가 업로드된 Video를 내부 분석 가능한 Temporary Local File로 준비하고 Local Path를 Analysis Core에 전달한다.
+- Local Video Path는 Analysis Core의 내부 Input Contract다.
+- Day 04 Local Video Path는 Web Boundary를 대신하는 개발 입력이다.
+
+#### Reason
+
+Analysis Core가 Web Framework와 Upload 처리 방식에 직접 종속되지 않도록 하기 위해서다.
+
+#### Consequence
+
+- Analysis Core를 독립적으로 구현하고 검증한 뒤 Web Layer를 별도 Slice에서 연결할 수 있다.
+- Day 04의 Local Path 기반 구현은 최종 내부 Input Contract를 직접 검증한다.
+- Web Upload는 최종 System Boundary지만 FastAPI와 Web UI의 구체적인 구현은 현재 Analysis Core 구현 범위 밖이다.
+
+#### Deferred
+
+Web Framework, Endpoint, HTTP Method, Multipart Field, Upload 제한과 Temporary File 저장·수명·보안 정책 및 관련 API Schema.
+
+### Structured Analysis Result as Canonical Output
+
+#### Context
+
+분석 결과는 Web Response와 사람이 읽을 수 있는 TXT Report 형태로 사용될 예정이다. 표현별로 분석 계산을 구현하면 결과가 달라지거나 계산 책임이 중복될 수 있다.
+
+#### Decision
+
+- Structured Analysis Result를 기존 Internal Analysis Output의 canonical structured form으로 사용한다.
+- 기존 Run, Phase, Event와 Metric 계층의 의미와 Output Contract를 유지한다.
+- Web Response와 TXT Report는 동일한 Structured Analysis Result에서 파생한다.
+- TXT를 분석 결과의 원본으로 사용하거나 TXT를 다시 읽어 Web Result를 생성하지 않는다.
+
+#### Reason
+
+표현 계층마다 분석 로직이 중복되거나 결과가 달라지는 것을 방지하기 위해서다.
+
+#### Consequence
+
+- 분석 계산 책임은 Analysis Core에 유지한다.
+- Web Response와 TXT Report는 Representation 책임만 가진다.
+- TXT Report는 동일한 Structured Analysis Result에서 생성하고 저장할 수 있어야 한다.
+
+#### Deferred
+
+전체 Result/JSON Schema, Web Response 표현, TXT Format, Filename, 저장 위치, Encoding, Template, 자동 생성 여부, Download 방식과 보관 기간.
+
+### Vue 3 and Vite Frontend Stack
+
+#### Context
+
+최종 Web Interface는 사용자에게 Video Upload UI와 Analysis Result 확인 기능을 제공해야 한다. Web Frontend는 Web/API Boundary와 Analysis Core의 책임을 침범하지 않는 별도 Presentation 계층이어야 한다.
+
+#### Decision
+
+- Web Frontend Technology로 Vue 3 + Vite를 사용한다.
+- Frontend는 Video Upload UI와 Analysis Result 표시를 담당한다.
+- Frontend는 Analysis Core에 직접 의존하지 않고 Web/API Boundary를 통해 연결한다.
+- Vue 3 + Vite 선택은 Domain Requirement가 아니라 Technology / Architecture Decision이다.
+
+#### Reason
+
+Frontend 기술 선택을 명확히 하면서 사용자 Interface, Web/API Boundary와 Analysis Core의 책임을 분리하기 위해서다.
+
+#### Consequence
+
+- 향후 Frontend Slice는 Vue 3 + Vite를 기준으로 구현한다.
+- Video 분석 계산 책임은 Analysis Core에 유지하고 Frontend는 입력과 결과 표현을 담당한다.
+- 이 결정은 Day 04의 Local Path 기반 Analysis Core 구현 범위를 변경하지 않는다.
+
+#### Deferred
+
+Vue Project 생성과 Dependency 설치, Component, Routing, State Management, API Client 구조, Endpoint와 Request/Response Schema.
