@@ -3,7 +3,7 @@
 ## Document Status
 
 - Status: Draft / Current Domain and Metric Source of Truth
-- Last updated: 2026-09-16 (Day 03)
+- Last updated: 2026-09-17 (Day 05)
 - Role: Run, Phase, Observation, Event와 Metric의 의미 및 보존 범위를 정의한다.
 - Rule: 공식, Threshold, 자료형과 Schema는 명시적으로 확정한 경우에만 사용한다.
 
@@ -66,10 +66,12 @@ Frame-level Observation은 Validation 또는 Debugging 실행에서 선택적으
 - Recording Video는 Run 전후의 여유 구간을 포함할 수 있다.
 - `Video Duration != Run Duration`이다.
 - 현재 Scenario의 Run Duration은 60초다.
-- Countdown의 `0` 시점이 Run Start Marker다.
+- 화면 중앙의 Countdown 표시가 사라진 첫 번째 decoded Frame이 Run Start 경계다.
+- 마지막 Countdown 표시 Frame은 Run에서 제외하고 첫 Countdown 미표시 Frame은 포함한다.
+- Run Start는 Domain에서 Recording 시작 기준의 seconds로 표현하며 Frame Index는 내부 처리와 Ground Truth 검증에 사용한다.
 - Run Start는 Automatic Countdown Detection 또는 Manual Fallback으로 확정한다.
 - Run End는 Domain 기준으로 Run Start 이후 60초다.
-- 정확한 Frame/Timestamp Mapping은 Deferred한다.
+- Recording-relative seconds와 decoded Frame의 정확한 Mapping은 Deferred한다.
 
 Run-level Internal Output은 다음 개념을 보존한다.
 
@@ -292,7 +294,7 @@ Original Video
 
 ## Deferred Decisions
 
-- exact Timestamp와 Frame Boundary 계산
+- Recording-relative seconds와 decoded Frame의 exact Mapping 및 60초 Frame Boundary 계산
 - 59.94 FPS와 Variable Frame Rate 처리
 - Video Open/Decode 실패와 정상 EOF Contract
 - First On-target Coverage Threshold

@@ -144,6 +144,8 @@ Human verification result:
 - Known Run Start 의미 정교화
 - 개발용 Human Ground Truth Inspector 구현
 - Human Ground Truth Frame과 seconds 확인
+- Countdown disappearance Contract를 Source of Truth 문서에 반영
+- Test & Validation Plan과 Validation Report에 Day 05 실제 결과 반영
 
 ### Not Yet Validated
 
@@ -164,8 +166,7 @@ Human verification result:
 5. exact `3600 Frames`를 가정하지 않는 Run Segment Frame Count 관찰
 6. time coverage 기반 Segment Completeness 판정
 7. Run End 도달 전에 Decode가 중단된 실패 경로 검증
-8. 확정된 Countdown disappearance Contract를 Source of Truth 문서에 반영
-9. Metadata 및 Unsupported FPS 실패 경로 실제 테스트
+8. Metadata 및 Unsupported FPS 실패 경로 실제 테스트
 
 ## Explicitly Deferred
 

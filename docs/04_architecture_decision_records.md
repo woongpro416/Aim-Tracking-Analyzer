@@ -3,7 +3,7 @@
 ## Document Status
 
 - Status: Draft / Active Decision Log
-- Last updated: 2026-09-16 (Day 04)
+- Last updated: 2026-09-17 (Day 05)
 - Role: 여러 Requirement, Data, Test 또는 구현 Slice에 함께 영향을 주는 주요 결정을 기록한다.
 
 ## Decision Selection Criteria
@@ -22,7 +22,7 @@
 | AI Analysis Placement | Accepted | Day 01 |
 | Binary Tracking State and Off-target-focused Analysis | Accepted | Day 02 |
 | Separate Directional Analysis Axes without 8 x 8 Cross-analysis | Accepted | Day 02 |
-| Recording Video and Run Segment Separation | Accepted | Day 03 |
+| Recording Video and Run Segment Separation | Accepted | Day 03 / refined Day 05 |
 | Run-level Data Boundary and Phase Separation | Accepted | Day 03 |
 | Runtime Frame Processing and Persistent Output Separation | Accepted | Day 03 |
 | Reduced Persistent Traceability Scope | Accepted | Day 03 |
@@ -124,18 +124,21 @@ Angle Boundary, Direction Noise, 정지·저속 처리와 Event별 Direction 귀
 
 #### Context
 
-실제 Recording에는 Countdown 전 준비 시간과 Run 종료 후 여유 시간이 포함될 수 있다. Video Duration과 실제 Aim Trainer Run Duration은 같지 않다.
+실제 Recording에는 Countdown 전 준비 시간과 Run 종료 후 여유 시간이 포함될 수 있다. Video Duration과 실제 Aim Trainer Run Duration은 같지 않다. 실제 `woong01.mp4`를 Frame 단위로 확인한 결과 고정된 `Countdown = 0` Frame은 존재하지 않았고, 마지막 표시 숫자는 Frame capture timing에 따라 `0.1x` 범위에서 달라질 수 있었다.
 
 #### Previous / Alternative
 
 - Video File 전체를 하나의 Run 시간 범위로 사용한다.
 - 사용자가 정확한 Run 구간으로 영상을 후편집한다.
+- 특정 Countdown 숫자값을 Run Start Marker로 고정한다.
 
 #### Decision
 
 - 현재 MVP에서 Video File 한 개는 분석 대상 Run 한 개와 연결된다.
 - Video 전체와 실제 Run Segment의 시간 범위를 구분한다.
-- 중앙 Countdown의 `0` 시점을 Run Start Marker로 사용한다.
+- 중앙 Countdown 표시가 사라진 첫 번째 decoded Frame을 Run Start 경계로 사용한다.
+- 마지막 Countdown 표시 Frame은 Run Segment에서 제외하고 첫 Countdown 미표시 Frame은 포함한다.
+- Domain에서 Run Start는 Recording-relative seconds로 표현하며 Frame Index는 내부 처리와 Ground Truth 검증에 사용한다.
 - 기본은 Automatic Countdown Detection이며 실패 또는 불확실 시 Manual Run Start Fallback을 사용한다.
 - 자동 탐지 성공 시 사용자 확인 없이 분석을 진행한다.
 - 하나의 Video에 둘 이상의 독립 Run이 존재하면 invalid input으로 처리한다.
@@ -149,11 +152,12 @@ Angle Boundary, Direction Noise, 정지·저속 처리와 Event별 Direction 귀
 
 - Run Boundary Resolution이 분석 Pipeline의 선행 책임이 된다.
 - Run Start 결정 방식과 Segment 처리 완전성을 Internal Output에 보존한다.
-- Day 04 첫 Slice에서는 Human-verified Known Run Start로 Segment 처리를 먼저 검증한다.
+- Day 05에는 개발용 Inspector로 Human-verified Known Run Start Ground Truth를 먼저 확보했다.
+- 현재 대표 Video의 Ground Truth는 첫 Countdown 미표시 Frame `356`, Recording-relative `5.933333333333334` seconds다.
 
 #### Deferred
 
-Countdown Detection Algorithm, Confidence, Manual Input 표현, exact Timestamp와 60초 Frame 경계.
+Countdown Detection Algorithm, Confidence, Manual Input 표현, Recording-relative seconds와 decoded Frame의 exact Mapping, 60초 Frame 경계와 Segment Completeness 판정.
 
 ### Run-level Data Boundary and Phase Separation
 

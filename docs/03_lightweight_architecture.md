@@ -3,7 +3,7 @@
 ## Document Status
 
 - Status: Draft / Implementation Entry Design
-- Last updated: 2026-09-16 (Day 04)
+- Last updated: 2026-09-17 (Day 05)
 - Role: 상세 Class나 Package 구조를 정하지 않고 MVP Pipeline과 단계별 책임을 설명한다.
 
 ## Design Goals
@@ -83,14 +83,20 @@ Local Video Path
 ### Input Validation
 
 - Video를 처리할 수 있는지 확인한다.
-- 현재 MVP가 지원하는 nominal 60 FPS 조건을 확인한다.
+- FPS Metadata가 finite이고 `0`보다 큰지 먼저 확인한다.
+- Width와 Height Metadata가 각각 finite이고 `0`보다 큰지 확인한다.
+- 현재 최소 지원 규칙인 exact `60.0`을 확인하고, 그 밖의 유효한 FPS는 Unsupported FPS로 구분한다.
+- Reported Frame Count는 원본 값으로 관찰하되 Validation 실패나 Segment Completeness의 근거로 사용하지 않는다.
 - 명확한 Contract 위반은 invalid input으로 구분한다.
-- 59.94 FPS 허용 오차와 세부 실패 표현은 Deferred한다.
+- 59.94 FPS 허용 오차와 Variable Frame Rate 처리는 Deferred한다.
 
 ### Run Boundary Resolution
 
 - Recording 전체와 실제 Run Segment를 구분한다.
-- 기본적으로 중앙 Countdown의 `0` 시점을 자동 탐색한다.
+- 중앙 Countdown 표시가 사라진 첫 번째 decoded Frame을 Run Start 경계로 사용한다.
+- 마지막 Countdown 표시 Frame은 제외하고 첫 Countdown 미표시 Frame은 포함한다.
+- Run Start는 Recording 시작 기준 seconds로 전달하며 Frame Index는 내부 처리와 Ground Truth 검증에 사용한다.
+- 최종 Workflow에서는 이 경계를 자동 탐색한다.
 - 자동 탐색 실패 또는 불확실 시 Manual Run Start를 요청한다.
 - Run Start 이후 Domain 기준 60초를 Run Segment로 사용한다.
 - 하나의 Video에서 둘 이상의 독립 Run이 확인되면 현재 MVP 입력으로 지원하지 않는다.
@@ -160,7 +166,7 @@ Video Input
 -> 60-second Run Segment Processing
 ```
 
-### Day 04 Initial Implementation Order
+### Phase 1 Incremental Implementation Order
 
 첫 Slice에서는 Countdown Detection 문제를 Video Decode와 시간 경계 문제에 섞지 않는다.
 
@@ -184,7 +190,7 @@ Video Open
 -> Segment Completeness Check
 ```
 
-Known Run Start는 개발 단계의 Known Boundary이며 최종 사용자 Workflow 변경이 아니다. 위 Slice가 검증된 뒤 Countdown 관측 특징, Automatic Detection과 Manual Fallback을 추가한다.
+Known Run Start는 개발 단계의 Known Boundary이며 최종 사용자 Workflow 변경이 아니다. Day 05에는 `src/inspect_run_start.py`로 첫 Countdown 미표시 Frame을 사람이 검증하여 Frame `356`, Recording-relative `5.933333333333334` seconds를 Ground Truth로 확보했다. Metadata Validation과 전체 Sequential Decode는 완료했고, 이 Known Start를 이용한 60초 Segment Processing과 Completeness Check는 다음 Slice다.
 
 ## Implementation Slice Rule
 
@@ -203,7 +209,7 @@ Requirement
 
 ## Constraints and Deferred Design
 
-- exact Timestamp 기준과 60초 Frame Boundary
+- Recording-relative seconds와 decoded Frame의 exact Mapping 및 60초 Frame Boundary
 - 59.94 FPS 및 Variable Frame Rate 처리
 - Video Open/Decode 실패 세부 Contract
 - Target Detection Algorithm과 Threshold

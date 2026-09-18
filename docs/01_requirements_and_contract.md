@@ -3,7 +3,7 @@
 ## Document Status
 
 - Status: Draft / Current Source of Truth
-- Last updated: 2026-09-16 (Day 04)
+- Last updated: 2026-09-17 (Day 05)
 - Role: 현재 MVP가 무엇을 만들고 어떤 입력과 결과를 지원하는지 정의한다.
 - Rule: 이 문서에서 확정하지 않은 Algorithm, Threshold, Schema, UI 및 구현 구조는 임의로 확정하지 않는다.
 - History: Day 01과 Day 02 Workflow는 당시의 판단을 보존하는 학습 기록이다. 충돌하는 경우 이 문서와 최신 ADR을 우선한다.
@@ -75,7 +75,7 @@ Web Framework, Upload API와 Temporary File 처리의 구체적인 방식은 Def
 
 - System과 Analysis Core가 처리하는 분석 대상은 Aim Trainer Recording Video 한 개다.
 - 한 Video에는 분석 대상 Run이 정확히 한 개만 존재해야 한다.
-- 현재 MVP는 nominal 60 FPS Recording만 지원한다.
+- 현재 구현의 최소 지원 규칙은 OpenCV가 보고한 FPS Metadata가 정확히 `60.0`인 Recording이다.
 - Crosshair는 화면 정중앙에 고정되어 있어야 한다.
 - 시스템은 Crosshair를 별도로 Detection하지 않고 Screen Center를 기준점으로 사용한다.
 - 현재 Target은 하나의 유효 영역을 가진 단일 세로 타원형 Target이다.
@@ -84,20 +84,26 @@ Web Framework, Upload API와 Temporary File 처리의 구체적인 방식은 Def
 
 ### Invalid Input Decisions
 
-- 지원 FPS 조건을 충족하지 않는 입력은 `invalid`다.
+- FPS가 finite가 아니거나 `0` 이하이면 Invalid Metadata다.
+- Width 또는 Height가 finite가 아니거나 `0` 이하이면 Invalid Metadata다.
+- FPS가 유효한 숫자이지만 현재 지원 규칙인 `60.0`과 다르면 Unsupported FPS이며 현재 MVP 입력으로는 `invalid`다.
+- Reported Frame Count는 조회하고 관찰하지만 현재 Slice의 Metadata Validation 실패 조건이나 Segment Completeness 근거로 사용하지 않는다.
 - 하나의 Video에 둘 이상의 독립 Run이 포함된 입력은 현재 MVP Contract 위반이며 `invalid`다.
 - Video Open 실패, Frame을 읽을 수 없는 입력과 필요한 60초 Segment 부족의 세부 Contract는 Deferred한다.
 - 59.94 FPS 허용 여부, nominal 60 FPS 판정 허용 오차와 Variable Frame Rate 처리는 Deferred한다.
 
 ## Run Boundary Resolution
 
-정상 Aim Trainer Run에는 화면 중앙의 Countdown이 존재한다.
+정상 Aim Trainer Run에는 화면 중앙의 Countdown이 존재한다. 마지막으로 표시되는 숫자는 Recording의 Frame capture timing에 따라 달라질 수 있으므로 특정 숫자값을 Run Start Marker로 고정하지 않는다.
 
 ```text
-3 -> 2 -> 1 -> 0
+Countdown 표시 Frame
+-> Countdown이 사라진 첫 decoded Frame / Run Start
 ```
 
-- `Countdown = 0`인 시점을 Run Start Marker로 사용한다.
+- 화면 중앙의 Countdown 표시가 사라진 첫 번째 decoded Frame을 Run Start 경계로 사용한다.
+- 마지막 Countdown 표시 Frame은 Run Segment에서 제외하고 첫 Countdown 미표시 Frame은 포함한다.
+- Domain에서 Run Start는 Recording 시작 기준의 seconds로 표현한다. Frame Index는 처리와 Ground Truth 검증에 사용하는 내부 세부사항이다.
 - 기본 Workflow는 Automatic Countdown Detection이다.
 - 자동 탐지가 정상적으로 성공하면 별도 사용자 확인 없이 Run Start를 확정한다.
 - 자동 탐지가 실패하거나 불확실하여 정상 Run Start를 하나로 확정할 수 없으면 사용자에게 Manual Run Start 지정을 요청한다.
@@ -105,7 +111,7 @@ Web Framework, Upload API와 Temporary File 처리의 구체적인 방식은 Def
 - 최종적으로 Run Start가 하나 확정되어야 분석을 계속할 수 있다.
 - Run End는 Domain 기준으로 Run Start 이후 정확히 60초가 지난 시점이다.
 - `60 FPS x 60 seconds = exactly 3600 decoded frames`를 Contract로 고정하지 않는다.
-- 정확한 Frame/Timestamp 경계 계산은 Timestamp Specification까지 Deferred한다.
+- Recording-relative seconds와 decoded Frame의 정확한 Mapping 및 60초 종료 경계 계산은 Timestamp Specification까지 Deferred한다.
 
 ## Run-level Data Boundary and Phases
 
@@ -114,7 +120,7 @@ Run-level Data Boundary와 Tracking Maintenance Metric Boundary를 구분한다.
 ```text
 Recording Start
 -> Countdown
--> Countdown = 0 / Run Start
+-> Countdown 표시 종료 / Run Start
 -> Initial Acquisition
 -> First On-target
 -> Tracking Maintenance
@@ -360,9 +366,9 @@ Original Video
 
 ## MVP Scope
 
-- 통제된 nominal 60 FPS Tracking Recording 입력
+- OpenCV FPS Metadata가 정확히 `60.0`인 통제된 Tracking Recording 입력
 - Recording 내부의 단일 60초 Run Segment 분석
-- Automatic Countdown 기반 Run Start Resolution과 Manual Fallback
+- Countdown 표시 종료 기반 Automatic Run Start Resolution과 Manual Fallback
 - 모든 Decode 가능한 Frame의 Sequential Runtime Processing
 - Initial Acquisition과 Tracking Maintenance Phase 구분
 - On-target / Off-target / Missing 상태 분석
@@ -394,7 +400,7 @@ Original Video
 
 ### Video and Time
 
-- exact Timestamp 계산 기준
+- Recording-relative seconds와 decoded Frame의 exact Mapping 및 60초 경계 계산 기준
 - 59.94 FPS 허용 여부와 nominal FPS 판정 허용 오차
 - Variable Frame Rate 처리
 - Video Open 실패, Frame Decode 실패와 정상 EOF의 세부 Contract
