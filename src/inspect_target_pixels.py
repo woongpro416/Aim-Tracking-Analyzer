@@ -1,6 +1,9 @@
-import cv2
 from pathlib import Path
 
+import cv2
+
+
+# inspect_target_frame.py가 만든 대표 프레임에서 색상 샘플을 확인한다.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 IMAGE_PATH = PROJECT_ROOT / "outputs" / "representative_frame_1256.png"
 
@@ -13,9 +16,13 @@ SAMPLE_POINTS = {
 }
 
 
-def main():
+def main() -> None:
+    # 대표 프레임이 없으면 선행 스크립트의 실행 순서를 안내한다.
     if not IMAGE_PATH.exists():
-        raise FileNotFoundError(f"대표 프레임 이미지를 찾을 수 없습니다: {IMAGE_PATH}")
+        raise FileNotFoundError(
+            "대표 프레임이 없습니다. inspect_target_frame.py를 먼저 실행하세요: "
+            f"{IMAGE_PATH}"
+        )
     if not IMAGE_PATH.is_file():
         raise ValueError(f"대표 프레임 경로가 파일이 아닙니다: {IMAGE_PATH}")
 
@@ -24,10 +31,12 @@ def main():
     if frame is None:
         raise ValueError(f"대표 프레임 이미지를 읽을 수 없습니다: {IMAGE_PATH}")
 
+    # 같은 픽셀을 BGR과 HSV 양쪽에서 비교할 수 있도록 색상 공간을 변환한다.
     hsv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-    height, width, channels = frame.shape
+    height, width, _channels = frame.shape
 
+    # 좌표의 유효성을 확인한 뒤 NumPy의 [y, x] 순서로 픽셀을 읽는다.
     for label, coordinates in SAMPLE_POINTS.items():
         x, y = coordinates
 
@@ -47,8 +56,6 @@ def main():
             f"BGR 값={bgr_pixel.tolist()} | "
             f"HSV 값={hsv_pixel.tolist()}"
         )
-
-
 
 if __name__ == "__main__":
     main()
