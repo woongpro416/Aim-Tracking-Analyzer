@@ -13,12 +13,14 @@ MIN_CANDIDATE_AREA = 150.0
 # 검출 함수가 반환하는 좌표와 결과 형식을 명시한다.
 BoundingBox = tuple[int, int, int, int]
 CenterPoint = tuple[float, float]
+TargetContour = np.ndarray
 DetectionResult = tuple[
     bool,
     BoundingBox | None,
     CenterPoint | None,
     int,
     int,
+    TargetContour | None,
 ]
 
 
@@ -66,7 +68,7 @@ def detect_target(frame: np.ndarray) -> DetectionResult:
     target_detected = valid_candidate_count == 1
 
     if not target_detected:
-        return False, None, None, contour_count, valid_candidate_count
+        return False, None, None, contour_count, valid_candidate_count, None
 
     # 단일 후보의 사각형 중심을 픽셀 좌표계의 타겟 중심으로 사용한다.
     target_contour = valid_candidates[0]
@@ -77,4 +79,11 @@ def detect_target(frame: np.ndarray) -> DetectionResult:
         y + height / 2,
     )
 
-    return True, bounding_box, center, contour_count, valid_candidate_count
+    return (
+        True,
+        bounding_box,
+        center,
+        contour_count,
+        valid_candidate_count,
+        target_contour,
+    )
