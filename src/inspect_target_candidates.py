@@ -7,8 +7,9 @@ from target_detection import detect_target
 
 # 대표 프레임의 검출 결과에 경계 사각형과 중심점을 그려 저장한다.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-FRAME_PATH = PROJECT_ROOT / "outputs" / "representative_frame_1256.png"
-DETECTION_OUTPUT_PATH = PROJECT_ROOT / "outputs" / "target_detection_1256.png"
+# 356번은 Run 시작과 최초 ON_TARGET을 함께 확인하는 대표 프레임이다.
+FRAME_PATH = PROJECT_ROOT / "outputs" / "representative_frame_356.png"
+DETECTION_OUTPUT_PATH = PROJECT_ROOT / "outputs" / "target_detection_356.png"
 
 
 def main() -> None:
@@ -33,11 +34,18 @@ def main() -> None:
         center,
         contour_count,
         valid_candidate_count,
+        selected_contour,
     ) = detect_target(frame)
 
     print(f"전체 윤곽선 후보 수: {contour_count}")
     print(f"면적 필터를 통과한 후보 수: {valid_candidate_count}")
     print(f"타겟 검출 여부: {target_detected}")
+
+    # 선택된 외곽선을 출력해 실제 검출 형태를 확인한다.
+    if selected_contour is not None:
+        print(f"타겟의 테두리 값 {selected_contour}")
+    else:
+        print(f"타겟의 테두리 값이 존재하지 않습니다.")
 
     if not target_detected:
         if valid_candidate_count == 0:
@@ -52,7 +60,7 @@ def main() -> None:
     if bounding_box is None or center is None:
         raise RuntimeError("타겟 검출 결과의 경계 사각형 또는 중심 좌표가 없습니다.")
 
-    # 검출된 경계 사각형과 중심 좌표를 사람이 확인할 수 있게 그린다.
+    # 선택된 Contour, 경계 사각형, 타겟 중심을 원본 위에 표시한다.
     x, y, width, height = bounding_box
     center_x, center_y = center
 
@@ -64,6 +72,16 @@ def main() -> None:
 
     visualized_frame = frame.copy()
 
+    # 노란색 1px 선으로 사각형과 실제 타겟 외곽의 차이를 본다.
+    cv2.drawContours(
+        visualized_frame,
+        [selected_contour],
+        0,
+        (0, 255, 255),
+        1,
+    )
+
+    # 초록색 사각형도 1px로 그려 경계 픽셀을 가리지 않는다.
     top_left = (x, y)
     bottom_right = (
         x + width - 1,
@@ -75,9 +93,10 @@ def main() -> None:
         top_left,
         bottom_right,
         (0, 255, 0),
-        2,
+        1,
     )
 
+    # 빨간 점은 Target 중심이며 Screen Center Crosshair와는 다르다.
     center_point = (
         round(center_x),
         round(center_y),

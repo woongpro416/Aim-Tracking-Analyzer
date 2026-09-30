@@ -156,6 +156,24 @@ def main() -> None:
             decoded_frame_count += 1
             frame_coverage_end_seconds = (current_frame_index + 1) / video_fps
 
+        # 상태별 첫 등장 인덱스를 보존해 수동 검증할 프레임을 찾는다.
+        representative_frame_indices = {
+            TRACKING_STATE_ON_TARGET: None,
+            TRACKING_STATE_OFF_TARGET: None,
+            TRACKING_STATE_MISSING: None,
+        }
+
+        # Sequence의 시간 순서를 이용해 각 상태의 첫 인덱스만 기록한다.
+        for observation in tracking_state_sequence:
+            tracking_state = observation["tracking_state"]
+            frame_index = observation["frame_index"]
+            if representative_frame_indices[tracking_state] is None:
+                representative_frame_indices[tracking_state] = frame_index
+
+        # 최초 인덱스는 검증용 출력이며 상태별 전체 Count와는 별개다.
+        print(representative_frame_indices)
+
+
         # Observation 목록을 순회해 상태별 프레임 수와 정합성을 계산한다.
         observation_count = len(target_observations)
         detected_frame_count = 0
