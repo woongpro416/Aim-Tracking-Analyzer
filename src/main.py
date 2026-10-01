@@ -1,8 +1,11 @@
+# math는 유한한 숫자 검증에, Path는 프로젝트 기준의 영상 경로 구성에 사용한다.
 import math
 from pathlib import Path
 
+# 이 파일은 실제 Run 분석의 실행 진입점이다. Closing·Top-strip·Shape 실험은 검사 파일에 둔다.
 import cv2
 
+# 원본 검출 함수와 공통 상태 판정을 호출하며, 실험 정책을 여기서 임의로 채택하지 않는다.
 from target_detection import detect_target
 from tracking_state import (
     classify_tracking_state,
@@ -13,6 +16,7 @@ from tracking_state import (
 
 
 # 프로젝트 입력 영상과 분석할 Run 구간을 정의한다.
+# 시작 시각은 사람이 확인한 356번 Frame / 60 FPS다. 자동 Countdown 탐색 결과가 아니다.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 VIDEO_PATH = PROJECT_ROOT / "data" / "raw" / "woong01.mp4"
 RUN_DURATION_SECONDS = 60.0
@@ -45,6 +49,7 @@ def main() -> None:
         video_height = video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
         reported_frame_count = video_capture.get(cv2.CAP_PROP_FRAME_COUNT)
 
+        # 메타데이터는 입력 조건을 확인하는 값이며, 실제 읽은 Frame 수는 아래 반복문에서 따로 센다.
         print("비디오 파일 열기에 성공했습니다.")
         print(f"초당 프레임 수(FPS): {video_fps}")
         print(f"FPS 값의 자료형: {type(video_fps)}")
@@ -61,7 +66,7 @@ def main() -> None:
         if video_fps != 60.0:
             raise ValueError(f"지원하지 않는 FPS입니다. 실제 FPS: {video_fps}")
 
-        # Crosshair의 좌표를 계산한다.
+        # Crosshair는 화면 중앙에 고정된 것으로 가정한다. Target 중심 좌표와는 다른 기준점이다.
         crosshair_x = int(video_width) // 2
         crosshair_y = int(video_height) // 2
         crosshair_point = (crosshair_x, crosshair_y)
@@ -96,6 +101,7 @@ def main() -> None:
         # 분석 구간의 각 프레임 결과를 순서대로 보존한다.
         # center가 None이면 해당 프레임에서는 타겟 위치를 결정하지 못했다는 뜻이다.
         target_observations = []
+        # Raw Detection과 조준 상태를 분리한다. 두 목록은 같은 frame_index로 연결할 수 있다.
         tracking_state_sequence = []
 
         # 영상을 처음부터 한 번만 순차 디코딩하고, Run 구간만 타겟 검출한다.
@@ -105,8 +111,10 @@ def main() -> None:
                 break
 
             current_frame_index = decoded_frame_count
+            # 현재는 60 FPS CFR 입력을 가정하며, 시간은 녹화 시작 기준의 초 단위다.
             frame_time_seconds = current_frame_index / video_fps
 
+            # 시작은 포함하고 끝은 제외한다. 이 조건을 만족하는 Frame에만 검출을 적용한다.
             if known_run_start_seconds <= frame_time_seconds < run_end_seconds:
                 if first_segment_frame_index is None:
                     first_segment_frame_index = current_frame_index
@@ -114,6 +122,7 @@ def main() -> None:
                 last_segment_frame_index = current_frame_index
                 run_segment_frame_count += 1
 
+                # 검출 함수의 여섯 반환값을 받는다. _로 시작하는 변수는 여기서 사용하지 않는 값이다.
                 (
                     detected,
                     _bounding_box,
@@ -123,6 +132,7 @@ def main() -> None:
                     selected_contour,
                 ) = detect_target(frame)
 
+                # 후보가 없거나 여러 개여서 Contour가 None이면 MISSING이다. OFF_TARGET으로 바꾸지 않는다.
                 tracking_state = classify_tracking_state(
                     selected_contour,
                     crosshair_point,
@@ -136,6 +146,7 @@ def main() -> None:
                 else:
                     status = STATUS_AMBIGUOUS
 
+                # 한 Frame의 검출 기록을 Dictionary로 만들고 목록에 추가한다. 현재는 메모리에만 보존한다.
                 observation = {
                     "frame_index": current_frame_index,
                     "frame_time_seconds": frame_time_seconds,
@@ -145,6 +156,7 @@ def main() -> None:
                 }
                 target_observations.append(observation)
 
+                # 조준 상태에도 같은 Frame 인덱스와 시간을 넣어 Raw Observation과 대응시킨다.
                 tracking_state_observation = {
                     "frame_index": current_frame_index,
                     "frame_time_seconds": frame_time_seconds,
@@ -154,6 +166,7 @@ def main() -> None:
                 tracking_state_sequence.append(tracking_state_observation)
 
             decoded_frame_count += 1
+            # 마지막 Frame이 차지하는 시간까지 포함하려면 인덱스에 1을 더해야 한다.
             frame_coverage_end_seconds = (current_frame_index + 1) / video_fps
 
         # 상태별 첫 등장 인덱스를 보존해 수동 검증할 프레임을 찾는다.
@@ -163,6 +176,7 @@ def main() -> None:
             TRACKING_STATE_MISSING: None,
         }
 
+        # None은 아직 찾지 못했다는 뜻이다. 실제 인덱스 0도 유효하므로 None과 따로 구분한다.
         # Sequence의 시간 순서를 이용해 각 상태의 첫 인덱스만 기록한다.
         for observation in tracking_state_sequence:
             tracking_state = observation["tracking_state"]
@@ -172,7 +186,6 @@ def main() -> None:
 
         # 최초 인덱스는 검증용 출력이며 상태별 전체 Count와는 별개다.
         print(representative_frame_indices)
-
 
         # Observation 목록을 순회해 상태별 프레임 수와 정합성을 계산한다.
         observation_count = len(target_observations)
@@ -193,9 +206,11 @@ def main() -> None:
             else:
                 raise ValueError(f"알 수 없는 타겟 관찰 상태입니다: {status}")
 
+        # 후보 없음과 후보 여러 개는 원인이 다르지만, 둘 다 Target 하나를 결정하지 못한 상태다.
         missing_frame_count = no_candidate_count + ambiguous_candidate_count
         categorized_observation_count = detected_frame_count + missing_frame_count
 
+        # 아래 집계는 현재 검출 규칙으로 분류한 Frame 수다. 사람의 정답과 비교한 정확도가 아니다.
         on_target_frame_count = 0
         off_target_frame_count = 0
         tracking_missing_frame_count = 0
@@ -218,6 +233,7 @@ def main() -> None:
             + tracking_missing_frame_count
         )
 
+        # 시간 순으로 첫 ON_TARGET만 찾는다. break로 탐색을 끝내므로 이후 ON_TARGET으로 덮어쓰지 않는다.
         first_on_target_observation = None
 
         for tracking_state_observation in tracking_state_sequence:
@@ -228,6 +244,7 @@ def main() -> None:
                 first_on_target_observation = tracking_state_observation
                 break
 
+        # ON_TARGET이 한 번도 없으면 None을 유지한다. 0초라는 유효한 결과와 구분하기 위한 처리다.
         first_on_target_frame_index = None
         first_on_target_frame_time_seconds = None
         first_on_target_run_relative_time_seconds = None
@@ -246,6 +263,8 @@ def main() -> None:
 
         first_on_target_observed = first_on_target_observation is not None
 
+        # 최초 ON_TARGET을 기준으로 Run의 초기 확보 구간과 유지 구간의 경계를 요약한다.
+        # 이 Summary는 연속 OFF_TARGET Event나 Event Duration을 계산한 결과가 아니다.
         run_phase_summary = {
             "first_on_target_observed": first_on_target_observed,
             "phase_boundary_frame_index": first_on_target_frame_index,
@@ -255,6 +274,7 @@ def main() -> None:
             ),
         }
 
+        # 구간에 실제 Frame이 있을 때만 첫/마지막 Frame 시간을 계산한다.
         if (
             first_segment_frame_index is not None
             and last_segment_frame_index is not None
@@ -262,6 +282,7 @@ def main() -> None:
             first_segment_frame_time_seconds = first_segment_frame_index / video_fps
             last_segment_frame_time_seconds = last_segment_frame_index / video_fps
 
+        # 단일 Target 결정률은 검출 가능 비율이다. 구간이 비어 있으면 0으로 나누지 않고 None으로 둔다.
         if run_segment_frame_count == 0:
             single_target_decision_rate = None
         else:
@@ -282,7 +303,7 @@ def main() -> None:
             f"{categorized_observation_count == observation_count}"
         )
 
-        # 분석 결과가 카운트 되고 있는지 확인
+        # 상태 Sequence, Raw Observation, Run Frame 수의 정합성을 확인한다.
         print("\n[트래킹 상태 시퀀스 검증]")
         print(f"트래킹 상태 프레임 수: {tracking_state_count}")
         print(
@@ -326,6 +347,7 @@ def main() -> None:
         print(f"성공적으로 디코딩한 전체 프레임 수: {decoded_frame_count}")
         print(f"성공적으로 디코딩한 시간 범위의 끝(초): {frame_coverage_end_seconds}")
 
+        # 세 상태의 합계와 MISSING 원인 집계가 앞서 기록한 Frame 수와 같은지 출력한다.
         print("\n[트래킹 상태 통계]")
         print(f"ON_TARGET 프레임 수: {on_target_frame_count}")
         print(f"OFF_TARGET 프레임 수: {off_target_frame_count}")
@@ -344,6 +366,7 @@ def main() -> None:
             f"{tracking_missing_frame_count == missing_frame_count}"
         )
 
+        # 최초 ON_TARGET의 인덱스·시각과 Run 시작으로부터 걸린 시간을 표시한다.
         print("\n[최초 온타겟 및 실행 구간 단계 요약]")
         print(
             "최초 온타겟 관찰 여부: "
@@ -371,5 +394,6 @@ def main() -> None:
         video_capture.release()
 
 
+# 직접 실행할 때만 전체 Run을 처리한다. 다른 파일에서 import하면 main()을 자동 실행하지 않는다.
 if __name__ == "__main__":
     main()
