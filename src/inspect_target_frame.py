@@ -6,9 +6,9 @@ import cv2
 # 원본 영상에서 후속 픽셀·마스크·후보 검사에 사용할 대표 프레임을 추출한다.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 VIDEO_PATH = PROJECT_ROOT / "data" / "raw" / "woong01.mp4"
-# 현재 검사 대상은 Closing 후 추가 후보가 나타났던 764번 프레임이다.
-OUTPUT_PATH = PROJECT_ROOT / "outputs" / "representative_frame_764.png"
-REPRESENTATIVE_FRAME_INDEX = 764
+# 사용자가 마지막으로 검사한 3933번 설정은 유지한다. 번호는 한 곳에서만 변경한다.
+REPRESENTATIVE_FRAME_INDEX = 3933
+OUTPUT_PATH = PROJECT_ROOT / "outputs" / f"representative_frame_{REPRESENTATIVE_FRAME_INDEX}.png"
 
 
 def main() -> None:

@@ -14,6 +14,7 @@ sys.path.insert(0, str(SRC_PATH))
 
 # import만으로 검사 스크립트의 main()이 실행되지는 않는다.
 from inspect_target_mask import compare_frame
+from target_detection import detect_target
 
 
 def test_empty_frame_returns_zero_candidates_and_missing():
@@ -109,3 +110,15 @@ def test_only_top_strip_noise_leaves_no_selected_target():
         "valid_candidate_count": 0,
         "tracking_state": "MISSING",
     }
+
+
+def test_original_baseline_is_independent_of_final_production_filter():
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    cv2.circle(frame, (50, 50), 10, (255, 255, 0), -1)
+    cv2.rectangle(frame, (5, 0), (24, 9), (255, 255, 0), -1)
+    comparison = compare_frame(frame)
+    production = detect_target(frame)
+    assert comparison["original"] == {"valid_candidate_count": 2, "tracking_state": "MISSING"}
+    assert comparison["closing_only"] == {"valid_candidate_count": 2, "tracking_state": "MISSING"}
+    assert comparison["closing_top_strip"] == {"valid_candidate_count": 1, "tracking_state": "ON_TARGET"}
+    assert production[4] == comparison["closing_top_strip"]["valid_candidate_count"]

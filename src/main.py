@@ -2,11 +2,11 @@
 import math
 from pathlib import Path
 
-# 이 파일은 실제 Run 분석의 실행 진입점이다. Closing·Top-strip·Shape 실험은 검사 파일에 둔다.
+# 실제 Run 분석의 실행 진입점이다. Baseline 비교와 Shape 관찰은 Inspector에 둔다.
 import cv2
 
-# 원본 검출 함수와 공통 상태 판정을 호출하며, 실험 정책을 여기서 임의로 채택하지 않는다.
-from target_detection import detect_target
+# 승인된 Closing + Top-strip 검출과 공통 상태 판정만 호출한다.
+from target_detection import DETECTION_POLICY, detect_target
 from tracking_state import (
     classify_tracking_state,
     TRACKING_STATE_MISSING,
@@ -28,14 +28,13 @@ STATUS_NO_CANDIDATE = "타겟 미결정: 유효 후보 없음"
 STATUS_AMBIGUOUS = "타겟 미결정: 유효 후보 여러 개"
 
 
-def main() -> None:
+def analyze_run() -> dict:
+    """기존 Run 분석 흐름을 실행하고 Raw Observation·State Sequence·Summary를 반환한다."""
     # OpenCV에 전달하기 전에 입력 경로가 실제 파일인지 확인한다.
     if not VIDEO_PATH.exists():
         raise FileNotFoundError("비디오 파일이 존재하지 않습니다.")
     if not VIDEO_PATH.is_file():
         raise ValueError("올바른 비디오 파일이 아닙니다.")
-
-    print(f"{VIDEO_PATH.resolve()} 비디오 파일을 확인했습니다.")
 
     video_capture = cv2.VideoCapture(str(VIDEO_PATH))
 
@@ -48,13 +47,6 @@ def main() -> None:
         video_width = video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)
         video_height = video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
         reported_frame_count = video_capture.get(cv2.CAP_PROP_FRAME_COUNT)
-
-        # 메타데이터는 입력 조건을 확인하는 값이며, 실제 읽은 Frame 수는 아래 반복문에서 따로 센다.
-        print("비디오 파일 열기에 성공했습니다.")
-        print(f"초당 프레임 수(FPS): {video_fps}")
-        print(f"FPS 값의 자료형: {type(video_fps)}")
-        print(f"영상 너비(픽셀): {video_width}")
-        print(f"영상 높이(픽셀): {video_height}")
 
         # 잘못된 메타데이터로 시간이나 프레임 위치를 계산하지 않도록 검증한다.
         if not math.isfinite(video_fps) or video_fps <= 0:
@@ -73,8 +65,6 @@ def main() -> None:
 
         if crosshair_x <= 0 or crosshair_y <= 0:
             raise ValueError("크로스헤어 좌표는 0 이하일 수 없습니다.")
-        print(f"크로스헤어 X 좌표: {crosshair_x}")
-        print(f"크로스헤어 Y 좌표: {crosshair_y}")
 
         # 알려진 시작 시각으로부터 60초 분석 구간의 끝을 계산한다.
         known_run_start_seconds = KNOWN_RUN_START_SECONDS
@@ -86,8 +76,6 @@ def main() -> None:
             raise ValueError("시작 위치는 음수일 수 없습니다.")
 
         run_end_seconds = known_run_start_seconds + RUN_DURATION_SECONDS
-        print(f"검증용 에임 트래킹 분석 시작 시간(초): {known_run_start_seconds}")
-        print(f"에임 트래킹 분석 종료 시간(초): {run_end_seconds}")
 
         # 디코딩 범위와 분석 구간의 경계를 기록할 변수를 초기화한다.
         decoded_frame_count = 0
@@ -146,7 +134,7 @@ def main() -> None:
                 else:
                     status = STATUS_AMBIGUOUS
 
-                # 한 Frame의 검출 기록을 Dictionary로 만들고 목록에 추가한다. 현재는 메모리에만 보존한다.
+                # 한 Frame의 검출 기록을 목록에 추가하고 최종 분석 결과로 반환한다.
                 observation = {
                     "frame_index": current_frame_index,
                     "frame_time_seconds": frame_time_seconds,
@@ -183,9 +171,6 @@ def main() -> None:
             frame_index = observation["frame_index"]
             if representative_frame_indices[tracking_state] is None:
                 representative_frame_indices[tracking_state] = frame_index
-
-        # 최초 인덱스는 검증용 출력이며 상태별 전체 Count와는 별개다.
-        print(representative_frame_indices)
 
         # Observation 목록을 순회해 상태별 프레임 수와 정합성을 계산한다.
         observation_count = len(target_observations)
@@ -290,110 +275,87 @@ def main() -> None:
                 detected_frame_count / run_segment_frame_count
             )
 
-        # Observation 개수와 상태 집계가 서로 일치하는지 출력한다.
-        print("\n[타겟 관찰 검증]")
-        print(f"타겟 관찰 프레임 수: {observation_count}")
-        print(
-            "분석 구간 프레임 수와 관찰 프레임 수가 같은가?: "
-            f"{observation_count == run_segment_frame_count}"
-        )
-        print(f"상태별 프레임 수 합계: {categorized_observation_count}")
-        print(
-            "상태별 프레임 수 합계와 전체 관찰 프레임 수가 같은가?: "
-            f"{categorized_observation_count == observation_count}"
-        )
+        # 완료 여부를 출력만 하지 않고, 불완전한 Run이면 정상 결과를 반환하지 않는다.
+        expected_frame_count = round(RUN_DURATION_SECONDS * video_fps)
+        if frame_coverage_end_seconds < run_end_seconds:
+            raise RuntimeError("Run 종료 시각까지 디코딩하지 못했습니다.")
+        if run_segment_frame_count != expected_frame_count:
+            raise RuntimeError(f"Run Frame 수가 다릅니다: {run_segment_frame_count} != {expected_frame_count}")
+        if not (
+            categorized_observation_count
+            == observation_count
+            == categorized_tracking_state_count
+            == tracking_state_count
+            == run_segment_frame_count
+        ):
+            raise RuntimeError("Raw Observation / Tracking State / Run Frame 수가 일치하지 않습니다.")
+        if tracking_missing_frame_count != missing_frame_count:
+            raise RuntimeError("Tracking MISSING과 Raw 미결정 수가 일치하지 않습니다.")
 
-        # 상태 Sequence, Raw Observation, Run Frame 수의 정합성을 확인한다.
-        print("\n[트래킹 상태 시퀀스 검증]")
-        print(f"트래킹 상태 프레임 수: {tracking_state_count}")
-        print(
-            "타겟 관찰 프레임 수와 트래킹 상태 프레임 수가 같은가?: "
-            f"{tracking_state_count == observation_count}"
-        )
-        print(
-            "분석 구간 프레임 수와 트래킹 상태 프레임 수가 같은가?: "
-            f"{tracking_state_count == run_segment_frame_count}"
-        )
-
-        if target_observations:
-            print(f"첫 번째 타겟 관찰: {target_observations[0]}")
-            print(f"마지막 타겟 관찰: {target_observations[-1]}")
-
-        # 유효 후보가 정확히 하나인 프레임과 미결정 원인을 구분해 출력한다.
-        print("\n[타겟 검출 통계]")
-        print(f"단일 타겟 결정 프레임 수: {detected_frame_count}")
-        print(f"타겟 미결정 프레임 수: {missing_frame_count}")
-        print(f"유효 후보 없음 프레임 수: {no_candidate_count}")
-        print(f"유효 후보 여러 개 프레임 수: {ambiguous_candidate_count}")
-        if single_target_decision_rate is None:
-            print("단일 타겟 결정률: 계산할 수 없음")
-        else:
-            print(f"단일 타겟 결정률: {single_target_decision_rate:.2%}")
-
-        # 요청한 60초 구간이 실제 디코딩 범위에 포함됐는지 확인한다.
-        print("\n[분석 구간 및 디코딩 검증]")
-        if frame_coverage_end_seconds >= run_end_seconds:
-            print("에임 트래킹 분석 구간 완성 상태: 완료")
-        else:
-            print("에임 트래킹 분석 구간 완성 상태: 미완료")
-            print("필요한 분석 종료 시간까지 프레임을 디코딩하지 못했습니다.")
-
-        print(f"분석 구간의 첫 프레임 인덱스: {first_segment_frame_index}")
-        print(f"분석 구간의 마지막 프레임 인덱스: {last_segment_frame_index}")
-        print(f"분석 구간의 첫 프레임 시간(초): {first_segment_frame_time_seconds}")
-        print(f"분석 구간의 마지막 프레임 시간(초): {last_segment_frame_time_seconds}")
-        print(f"분석 구간 프레임 수: {run_segment_frame_count}")
-        print(f"메타데이터에 기록된 전체 프레임 수: {reported_frame_count}")
-        print(f"성공적으로 디코딩한 전체 프레임 수: {decoded_frame_count}")
-        print(f"성공적으로 디코딩한 시간 범위의 끝(초): {frame_coverage_end_seconds}")
-
-        # 세 상태의 합계와 MISSING 원인 집계가 앞서 기록한 Frame 수와 같은지 출력한다.
-        print("\n[트래킹 상태 통계]")
-        print(f"ON_TARGET 프레임 수: {on_target_frame_count}")
-        print(f"OFF_TARGET 프레임 수: {off_target_frame_count}")
-        print(f"MISSING 프레임 수: {tracking_missing_frame_count}")
-        print(f"트래킹 상태별 프레임 수 합계: {categorized_tracking_state_count}")
-        print(
-            "트래킹 상태별 합계와 전체 트래킹 상태 수가 같은가?: "
-            f"{categorized_tracking_state_count == tracking_state_count}"
-        )
-        print(
-            "트래킹 상태별 합계와 분석 구간 프레임 수가 같은가?: "
-            f"{categorized_tracking_state_count == run_segment_frame_count}"
-        )
-        print(
-            "트래킹 MISSING 수와 Raw 미결정 수가 같은가?: "
-            f"{tracking_missing_frame_count == missing_frame_count}"
-        )
-
-        # 최초 ON_TARGET의 인덱스·시각과 Run 시작으로부터 걸린 시간을 표시한다.
-        print("\n[최초 온타겟 및 실행 구간 단계 요약]")
-        print(
-            "최초 온타겟 관찰 여부: "
-            f"{run_phase_summary['first_on_target_observed']}"
-        )
-        print(
-            "단계 경계 프레임 인덱스: "
-            f"{run_phase_summary['phase_boundary_frame_index']}"
-        )
-        print(
-            "단계 경계 시간(초): "
-            f"{run_phase_summary['phase_boundary_time_seconds']}"
-        )
-        print(
-            "최초 온타겟 실행 구간 상대 시간(초): "
-            f"{first_on_target_run_relative_time_seconds}"
-        )
-        print(
-            "초기 확보 구간 지속시간(초): "
-            f"{run_phase_summary['initial_acquisition_duration_seconds']}"
-        )
+        # Phase 3는 이 Sequence를 재사용한다. Event·Duration Metric은 여기서 계산하지 않는다.
+        return {
+            "summary": {
+                "detection_policy": DETECTION_POLICY,
+                "video_path": str(VIDEO_PATH.resolve()),
+                "fps": video_fps,
+                "frame_width": int(video_width),
+                "frame_height": int(video_height),
+                "decoded_frame_count": decoded_frame_count,
+                "reported_frame_count": reported_frame_count,
+                "run_start_seconds": known_run_start_seconds,
+                "run_end_seconds": run_end_seconds,
+                "first_segment_frame_index": first_segment_frame_index,
+                "last_segment_frame_index": last_segment_frame_index,
+                "first_segment_frame_time_seconds": first_segment_frame_time_seconds,
+                "last_segment_frame_time_seconds": last_segment_frame_time_seconds,
+                "frame_coverage_end_seconds": frame_coverage_end_seconds,
+                "run_segment_frame_count": run_segment_frame_count,
+                "raw_observation_count": observation_count,
+                "tracking_state_sequence_count": tracking_state_count,
+                "state_counts": {
+                    TRACKING_STATE_ON_TARGET: on_target_frame_count,
+                    TRACKING_STATE_OFF_TARGET: off_target_frame_count,
+                    TRACKING_STATE_MISSING: tracking_missing_frame_count,
+                },
+                "missing_candidate_counts": {
+                    "no_candidate": no_candidate_count,
+                    "ambiguous": ambiguous_candidate_count,
+                },
+                "single_target_decision_rate": single_target_decision_rate,
+                "representative_frame_indices": representative_frame_indices,
+            },
+            "raw_observations": target_observations,
+            "tracking_state_sequence": tracking_state_sequence,
+            "run_phase_summary": run_phase_summary,
+        }
 
     finally:
         # 중간에 예외가 발생해도 비디오 파일 핸들은 반드시 해제한다.
         video_capture.release()
 
 
-# 직접 실행할 때만 전체 Run을 처리한다. 다른 파일에서 import하면 main()을 자동 실행하지 않는다.
+def print_run_summary(summary: dict) -> None:
+    """반복 Debug 출력 대신 최종 정책과 상태·Frame 수를 한 번씩 표시한다."""
+    print(f"Detection Contract: {summary['detection_policy']}")
+    print(f"Run Frame: {summary['first_segment_frame_index']}~{summary['last_segment_frame_index']}")
+    print(f"Total Frames: {summary['run_segment_frame_count']}")
+    for state, count in summary["state_counts"].items():
+        print(f"{state}: {count}")
+    print(f"Raw Observation Count: {summary['raw_observation_count']}")
+    print(f"Tracking State Sequence Count: {summary['tracking_state_sequence_count']}")
+    consistent = (
+        summary["raw_observation_count"]
+        == summary["tracking_state_sequence_count"]
+        == summary["run_segment_frame_count"]
+        == sum(summary["state_counts"].values())
+    )
+    print(f"Run Frame / Raw Observation / Tracking State 정합성: {'PASS' if consistent else 'FAIL'}")
+
+
+def main() -> None:
+    print_run_summary(analyze_run()["summary"])
+
+
+# 직접 실행할 때만 전체 Run을 처리한다. import만으로 분석을 실행하지 않는다.
 if __name__ == "__main__":
     main()

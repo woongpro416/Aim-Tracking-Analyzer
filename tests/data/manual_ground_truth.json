@@ -1,0 +1,39 @@
+{
+  "source": "Day 10 user labels + Day 12 user confirmation",
+  "verified_on": "2026-10-13",
+  "video_filename": "woong01.mp4",
+  "video_sha256": "9197211c8fbade5695db6dc0761b06ad5dffbb315b0f4258ddc6a5de8512a394",
+  "fps": 60.0,
+  "frame_width": 1920,
+  "frame_height": 1080,
+  "first_frame_index": 356,
+  "frame_count": 3600,
+  "verified_label_count": 18,
+  "expected_detection_policy": "closing_top_strip",
+  "expected_state_counts": {
+    "ON_TARGET": 2319,
+    "OFF_TARGET": 1000,
+    "MISSING": 281
+  },
+  "scope": "Labels cover 18 manually reviewed frames only. Expected counts are algorithm regression values, not full-video ground truth.",
+  "labels": {
+    "356": "ON_TARGET",
+    "381": "ON_TARGET",
+    "436": "OFF_TARGET",
+    "598": "ON_TARGET",
+    "764": "ON_TARGET",
+    "851": "MISSING",
+    "926": "OFF_TARGET",
+    "927": "ON_TARGET",
+    "1228": "ON_TARGET",
+    "1229": "OFF_TARGET",
+    "1380": "OFF_TARGET",
+    "1541": "ON_TARGET",
+    "2041": "ON_TARGET",
+    "2617": "ON_TARGET",
+    "2755": "ON_TARGET",
+    "3623": "OFF_TARGET",
+    "3722": "ON_TARGET",
+    "3933": "ON_TARGET"
+  }
+}

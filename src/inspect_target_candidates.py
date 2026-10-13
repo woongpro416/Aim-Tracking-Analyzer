@@ -41,9 +41,9 @@ def main() -> None:
     print(f"면적 필터를 통과한 후보 수: {valid_candidate_count}")
     print(f"타겟 검출 여부: {target_detected}")
 
-    # 선택된 외곽선을 출력해 실제 검출 형태를 확인한다.
+    # 전체 좌표 배열을 반복 출력하지 않고 선택 여부와 점 개수만 진단한다.
     if selected_contour is not None:
-        print(f"타겟의 테두리 값 {selected_contour}")
+        print(f"선택된 Contour 점 개수: {len(selected_contour)}")
     else:
         print(f"타겟의 테두리 값이 존재하지 않습니다.")
 

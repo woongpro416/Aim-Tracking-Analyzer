@@ -3,7 +3,7 @@
 ## Document Status
 
 - Status: Draft / Current Source of Truth
-- Last updated: 2026-09-17 (Day 05)
+- Last updated: 2026-10-13 (Day 12 Detection Contract 승인)
 - Role: 현재 MVP가 무엇을 만들고 어떤 입력과 결과를 지원하는지 정의한다.
 - Rule: 이 문서에서 확정하지 않은 Algorithm, Threshold, Schema, UI 및 구현 구조는 임의로 확정하지 않는다.
 - History: Day 01과 Day 02 Workflow는 당시의 판단을 보존하는 학습 기록이다. 충돌하는 경우 이 문서와 최신 ADR을 우선한다.
@@ -166,11 +166,27 @@ Tracking Maintenance Metric = unavailable with user-facing reason
 
 First On-target 없음은 `invalid input`이나 분석 시스템 실패와 같지 않다.
 
+## MVP Detection Contract — Accepted Day 12
+
+사용자가 승인한 현재 Production 규칙은 **Closing+Top-strip**이다. 검증 환경은 `woong01.mp4`의 **1920×1080 HUD, 60 FPS**로 한정한다.
+
+1. BGR에서 HSV Mask를 만든다. 범위는 `[85, 180, 180]~[100, 255, 255]`다.
+2. `5×5` Closing 후 External Contour를 추출한다.
+3. Contour 면적 `150.0` 이상을 후보로 남긴다.
+4. Bounding Box `(x, y, width, height)` 전체가 상단 `[0, 30)`px에 포함되는 `y + height <= 30` 후보만 제외한다.
+5. 유효 후보가 정확히 하나면 Bounding Box·Center·Contour를 선택한다. 후보 0개 또는 여러 개면 위치를 `None`으로 두고 MISSING으로 처리한다.
+
+Center는 Bounding Box의 픽셀 중심이며 Crosshair와 별개다. 조준 상태는 선택 Contour와 화면 중앙 Crosshair로 결정한다. 기존 반환값 6개 형식과 ON_TARGET / OFF_TARGET / MISSING 의미를 유지한다.
+
+Top-strip은 현재 HUD의 Noise를 제거하는 MVP 규칙이며 그 영역에 실제 Target이 완전히 나타나면 오제거할 수 있다. 사용자 수동 표본 일치는 Closing+Top-strip 18/18, Closing-only 14/18이지만 **18/18은 전체 영상 정확도 100%를 뜻하지 않는다.** 다른 해상도·Scenario·HUD에서 일반화 성능은 검증하지 않았다. 다른 해상도를 실행 코드에서 모두 거부한다는 계약도 아니다.
+
+Shape Filter와 Hough Circle은 Deferred이며 추가 Threshold 튜닝은 이번 범위에 없다. Production 정책과 실험용 Original / Closing-only 비교의 책임을 분리한다. 실제 검증 결과는 [Validation Report](06_validation_report.md)에 기록한다.
+
 ## Tracking State Contract
 
 Tracking Maintenance에서 다음 상태를 사용한다.
 
-- `On-target`: Crosshair가 Target의 유효 영역 내부에 있는 상태
+- `On-target`: Crosshair가 Target의 유효 영역 내부 또는 Contour 경계에 있는 상태
 - `Off-target`: Target이 관측되었고 Crosshair가 Target 유효 영역 외부에 있는 상태
 - `Missing`: 해당 Frame 또는 Timestamp에서 필요한 Target Observation이 없는 상태
 

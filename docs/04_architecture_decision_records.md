@@ -3,7 +3,7 @@
 ## Document Status
 
 - Status: Draft / Active Decision Log
-- Last updated: 2026-09-17 (Day 05)
+- Last updated: 2026-10-13 (Day 12)
 - Role: 여러 Requirement, Data, Test 또는 구현 Slice에 함께 영향을 주는 주요 결정을 기록한다.
 
 ## Decision Selection Criteria
@@ -31,6 +31,7 @@
 | User Input Contract and Analysis Core Input Contract Separation | Accepted | Day 04 |
 | Structured Analysis Result as Canonical Output | Accepted | Day 04 |
 | Vue 3 and Vite Frontend Stack | Accepted | Day 04 |
+| Closing + Top-strip MVP Detection | Accepted | Day 12 / 2026-10-13 |
 
 ## Decision Records
 
@@ -409,3 +410,29 @@ Frontend 기술 선택을 명확히 하면서 사용자 Interface, Web/API Bound
 #### Deferred
 
 Vue Project 생성과 Dependency 설치, Component, Routing, State Management, API Client 구조, Endpoint와 Request/Response Schema.
+
+### Closing + Top-strip MVP Detection
+
+#### Context
+
+같은 3600 Frame에서 Original / Closing-only / Closing+Top-strip을 비교했다. 사용자가 확인한 18개 Label의 일치는 각각 9/18, 14/18, 18/18이었다. Closing-only는 상단 Noise도 후보로 만들어 수동 표본 4개에서 MISSING이었다. 현재 목표는 이 MVP 영상의 안정적인 Tracking State다.
+
+#### Decision
+
+2026-10-13 사용자 승인으로 `HSV → 5×5 Closing → External Contour → Area ≥ 150 → Top-strip → 단일 후보 선택`을 Production에 반영한다. Top-strip은 bbox 전체가 상단 `[0, 30)`px에 있는 `y + height <= 30` 후보만 제외한다. 기존 HSV·면적 조건, 반환 형식과 세 상태 의미를 유지한다.
+
+#### Reason
+
+선정 수동 표본에서 모두 일치하고 Closing-only의 추가 MISSING을 해소했다. 추가 Shape 검증 부담을 늘리지 않고 현재 영상의 관찰값·상태를 Phase 3의 입력으로 안정화한다.
+
+#### Consequence
+
+- 현재 1920×1080 HUD 환경에 한정된 MVP 규칙이다. 상단에 완전히 들어간 실제 Target을 오제거할 수 있다.
+- 18/18은 제한된 비무작위 표본의 일치이며 전체 영상 정확도 100%나 다른 해상도·Scenario·HUD의 일반화 성능이 아니다.
+- Production은 Inspector에 의존하지 않는다. Original은 Closing 전 기준으로 보존하며 공통 Mask·Closing·필터 함수만 재사용한다.
+- 최종 Production은 53개 테스트, 3600 Frame 정합성, 사용자 Label 18개 비교를 통과했다. 기대 Count는 알고리즘 Regression 값이고 전체 Ground Truth가 아니다.
+- Frame별 JSON은 개발 검증 도구가 저장한다. 정상 실행의 필수 영구 Output 범위를 확대하지 않는다.
+
+#### Deferred
+
+Shape Filter, Hough Circle, 추가 Threshold 튜닝, 다른 입력에서의 일반화 검증. OFF_TARGET Event·Duration과 MISSING의 Event 경계는 Phase 3에서 다룬다.

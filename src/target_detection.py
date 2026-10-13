@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+
 import cv2
 import numpy as np
 
@@ -9,6 +11,11 @@ UPPER_HSV = np.array([100, 255, 255], dtype=np.uint8)
 # cv2.contourArea() 기준 150 제곱픽셀 미만의 작은 배경 조각은 후보에서 제외한다.
 # 실제 영상에서는 잡음의 최대 면적이 106.5였고, 150부터 결과가 안정되었다.
 MIN_CANDIDATE_AREA = 150.0
+
+# 승인된 MVP 정책이다. 30px 규칙의 검증 범위는 현재 1920×1080 HUD 환경이다.
+DETECTION_POLICY = "closing_top_strip"
+CLOSING_KERNEL_SIZE = 5
+TOP_STRIP_BOTTOM_Y = 30
 
 # 검출 함수가 반환하는 좌표와 결과 형식을 명시한다.
 BoundingBox = tuple[int, int, int, int]
@@ -42,27 +49,46 @@ def create_target_mask(frame: np.ndarray) -> np.ndarray:
     return cv2.inRange(hsv_frame, LOWER_HSV, UPPER_HSV)
 
 
+def close_target_mask(mask: np.ndarray) -> np.ndarray:
+    """승인된 5×5 Closing으로 HSV Mask의 작은 끊김을 연결한다."""
+    kernel = np.ones((CLOSING_KERNEL_SIZE, CLOSING_KERNEL_SIZE), dtype=np.uint8)
+    return cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+
+def is_top_strip_candidate(bbox: BoundingBox) -> bool:
+    """bbox 전체가 상단 [0, 30)px에 포함되면 제외 대상으로 본다."""
+    _x, y, _width, height = bbox
+    # y + height는 사각형의 아래쪽 제외 경계다. 실제 Target도 이 영역이면 제외된다.
+    return y + height <= TOP_STRIP_BOTTOM_Y
+
+
+def filter_target_candidates(contours: Iterable[TargetContour]) -> list[TargetContour]:
+    """면적과 승인된 Top-strip 조건을 적용한다. 후보 선택은 별도로 수행한다."""
+    valid_candidates = []
+    for contour in contours:
+        if cv2.contourArea(contour) < MIN_CANDIDATE_AREA:
+            continue
+        if is_top_strip_candidate(cv2.boundingRect(contour)):
+            continue
+        valid_candidates.append(contour)
+    return valid_candidates
+
+
 def detect_target(frame: np.ndarray) -> DetectionResult:
-    """면적 조건을 통과한 후보가 정확히 하나일 때 타겟 위치를 반환한다."""
+    """HSV → 5×5 Closing → 면적 → Top-strip → 단일 후보의 최종 MVP 검출이다."""
 
     # 이진 마스크의 서로 떨어진 흰색 영역을 외곽 윤곽선으로 추출한다.
-    mask = create_target_mask(frame)
+    mask = close_target_mask(create_target_mask(frame))
     contours, _ = cv2.findContours(
         mask,
         cv2.RETR_EXTERNAL,
         cv2.CHAIN_APPROX_SIMPLE,
     )
 
-    # 작은 UI 조각과 색상 잡음을 제외하고 의미 있는 후보만 보존한다.
-    valid_candidates = []
-
-    for contour in contours:
-        area = cv2.contourArea(contour)
-
-        if area >= MIN_CANDIDATE_AREA:
-            valid_candidates.append(contour)
+    valid_candidates = filter_target_candidates(contours)
 
     # 후보가 없거나 여러 개면 위치를 임의로 선택하지 않고 미결정으로 반환한다.
+    # contour_count는 Closing 후, Candidate Filter 전의 외부 윤곽선 수다.
     contour_count = len(contours)
     valid_candidate_count = len(valid_candidates)
     target_detected = valid_candidate_count == 1
