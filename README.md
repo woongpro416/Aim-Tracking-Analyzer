@@ -10,12 +10,13 @@
 
 현재 MVP 영상의 밝은 청록색 Target을 HSV로 분리하고, **5×5 Closing + Top-strip Filter**로 후보를 정리합니다. 후보가 정확히 하나일 때만 Target을 결정합니다. 화면 중앙 Crosshair가 선택된 Contour 안에 있는지 확인하고, 전체 Run의 관찰값과 상태 목록을 반환합니다.
 
-영상 입력 검증, 순차 디코딩, Run 구간 처리, Target 위치 기록, 상태 분류 및 검증 도구까지 구현했습니다. Event·Recovery·방향별 Metric·Score와 Web/API는 후속 범위입니다.
+영상 입력 검증, 순차 디코딩, Run 구간 처리, Target 위치 기록, 상태 분류 및 검증 도구까지 구현했습니다. Phase 3에서는 연속 OFF_TARGET 관측 구간의 묶기·지속 시간과 기초 Run Metric을 구현하고 Synthetic Sequence로 검증했습니다. 실제 3600 Frame과의 정합성 확인은 다음 작업입니다. Recovery·방향별 Metric·Score와 Web/API는 후속 범위입니다.
 
 ## My Role — 직접 구현과 AI 지원
 
 - 직접 구현: 영상 입력 검증, 순차 디코딩, Frame 시간·Run 구간 처리, HSV·Contour·Bounding Box·Center 흐름, 상태 분류와 집계, 최초 ON_TARGET 경계.
 - 직접 검증·결정: 원본 Frame의 수동 Ground Truth 18개, Baseline 집계 연결, 최종 Closing+Top-strip 정책 선택과 환경 제약 승인.
+- Phase 3 직접 구현: MISSING 경계 계약과 `off_target_interval` 명명, 구간 묶기·Duration·Run Metric 계산, 작은 입력과 테스트 실행.
 - AI 지원: 개념 설명과 코드 Review, 공통 로직 재사용, 반복 비교·변경 기록·표본 선정·보고서·추가 테스트, 승인 후 Production 반영·정리·문서화.
 
 학습한 코드를 설명하고 검증하는 것을 목표로 하는 AI-assisted development 프로젝트입니다.
@@ -51,6 +52,8 @@ flowchart TD
 | `src/main.py` | 입력 검증, 순차 Decode, Run 선택, 관찰값·상태·Summary 반환. CLI에서는 요약 출력 |
 | `src/target_detection.py` | 승인된 하나의 Detection 정책, Bounding Box·Center·Contour 반환 |
 | `src/tracking_state.py` | Contour와 화면 중앙점으로 세 상태 분류 |
+| `src/off_target_intervals.py` | 연속 OFF_TARGET 구간 묶기, Frame 수·지속 시간 계산과 결과 출력 |
+| `src/tracking_metrics.py` | 구간 목록에서 Run 전체 횟수·Frame 수·지속 시간·평균 구간 시간 집계 |
 | `src/inspect_target_mask.py` | Original / Closing-only / Closing+Top-strip 비교, Mask·Shape 관찰 |
 | `src/inspect_run_baselines.py` | 전체 Run 비교, 변경 Frame 기록, 표본·사용자 Label 보존 |
 | `src/validate_production_run.py` | 실제 Production 결과와 고정 Regression 기준·사용자 Label 비교 |
@@ -66,7 +69,7 @@ Production은 Inspector를 호출하지 않습니다. Inspector의 Original은 C
 4. 선택된 Contour와 화면 중앙점으로 Tracking State를 계산하고 같은 Frame Index·시간으로 두 목록에 기록합니다.
 5. Raw Observation 수, Tracking State 수, Run Frame 수와 상태 합계를 확인합니다. 불완전한 구간은 예외로 처리합니다.
 
-`analyze_run()`은 `summary`, `raw_observations`, `tracking_state_sequence`, `run_phase_summary`를 반환합니다. Frame별 전체 JSON 저장은 개발 검증 도구에서 수행합니다. `run_phase_summary`는 최초 ON_TARGET 경계이며 OFF_TARGET Event나 Recovery Metric이 아닙니다.
+`analyze_run()`은 `summary`, `raw_observations`, `tracking_state_sequence`, `run_phase_summary`를 반환합니다. Frame별 전체 JSON 저장은 개발 검증 도구에서 수행합니다. `run_phase_summary`는 최초 ON_TARGET 경계이며 OFF_TARGET Interval이나 Recovery Metric이 아닙니다.
 
 ## Core Implementation — 최종 Detection Contract
 
@@ -129,6 +132,8 @@ python -m venv .venv
 
 Baseline 비교는 기본 실행에서 이미지를 재생성하지 않습니다. 필요할 때만 `src/inspect_run_baselines.py --export-images`로 원본·Crop을 생성합니다. 자세한 기록은 [Day 12 종료 기록](docs/workflow/day12_detection_validation_and_phase2_closeout.md), [검증 보고서](docs/06_validation_report.md)에 있습니다.
 
+2026-10-14 Phase 3의 Synthetic Test는 구간 처리 4개와 Metric 집계 2개를 각각 실행해 통과했습니다. 새 변경 이후 전체 회귀 테스트와 실제 3600 Frame 정합성 검증은 아직 수행하지 않았습니다. 계약과 학습 내용은 [Day 13 작업일지](docs/workflow/day13_off_target_intervals_and_metrics.md)에 기록했습니다.
+
 ## Limitations — 검증 범위와 한계
 
 - **Top-strip Filter는 현재 영상의 1920×1080 HUD 환경에 한정된 MVP 규칙입니다.** 이 영역에 실제 Target이 완전히 들어가면 오제거할 위험이 있습니다. 실행 코드가 다른 해상도를 모두 차단하는 것은 아닙니다.
@@ -140,4 +145,4 @@ Baseline 비교는 기본 실행에서 이미지를 재생성하지 않습니다
 
 ## Next Steps — Phase 3
 
-최종 `tracking_state_sequence`를 재사용하여 연속 OFF_TARGET Event와 Duration부터 구현합니다. 먼저 MISSING이 Event를 끊을지, 별도 경계로 둘지 계약을 정합니다. 이후 Metric 검증을 진행하며 추가 검출 튜닝·Shape Filter·Hough 도입은 이번 범위에 포함하지 않습니다.
+연속 OFF_TARGET 관측 구간의 도메인 이름은 `off_target_interval`입니다. ON_TARGET 또는 MISSING을 만나면 구간을 종료하며, Run 끝까지 OFF_TARGET이면 마지막 Frame까지 포함합니다. MISSING 종료를 조준 회복 성공으로 해석하지 않습니다. 구간 Duration과 기초 Run Metric까지 구현했으며, 다음에는 실제 3600 Frame 입력에서 OFF_TARGET 1000 Frame의 정합성과 전체 회귀 테스트를 확인합니다. 추가 검출 튜닝·Shape Filter·Hough 도입은 이번 범위에 포함하지 않습니다.

@@ -249,7 +249,7 @@ def analyze_run() -> dict:
         first_on_target_observed = first_on_target_observation is not None
 
         # 최초 ON_TARGET을 기준으로 Run의 초기 확보 구간과 유지 구간의 경계를 요약한다.
-        # 이 Summary는 연속 OFF_TARGET Event나 Event Duration을 계산한 결과가 아니다.
+        # 이 Summary는 연속 OFF_TARGET Interval이나 Interval Duration을 계산한 결과가 아니다.
         run_phase_summary = {
             "first_on_target_observed": first_on_target_observed,
             "phase_boundary_frame_index": first_on_target_frame_index,
