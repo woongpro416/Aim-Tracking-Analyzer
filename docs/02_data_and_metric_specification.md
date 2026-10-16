@@ -237,7 +237,17 @@ Event ID 형식, Sequence 표현, Start/End Timestamp 자료형, JSON Schema와 
 - Run/Phase/Direction별 Valid Observation
 - Phase별 Missing 또는 Coverage
 
-정식 Metric 이름, 공식과 최종 목록은 아직 확정하지 않는다.
+아래에서 확정한 지표를 제외한 정식 Metric 이름, 공식과 최종 목록은 아직 확정하지 않는다.
+
+### Observed On-target Ratio — 관측 구간 조준 일치율
+
+- Run의 `ON_TARGET` Frame 수를 `ON_TARGET + OFF_TARGET` Frame 수로 나눈다.
+- `MISSING`은 조준 상태를 판단할 수 없으므로 분모에서 제외하며, 별도의 Coverage 정보로 보존한다.
+- 관측 가능한 Frame이 0개면 `0`이 아니라 `None`을 반환한다.
+- 관측 가능한 Frame이 있고 모두 `OFF_TARGET`이면 `0.0`이다.
+- `ON_TARGET` 또는 `OFF_TARGET` Frame 수가 음수이면 잘못된 입력으로 보고 `ValueError`를 발생시킨다.
+- 이 값은 관측된 Frame의 조준 일치율이며 게임에서 제공하는 Accuracy나 방향별 성능을 뜻하지 않는다.
+- 계산 계약을 확정하고 `calculate_observed_on_target_ratio()` 및 기본·관측 없음·전체 OFF_TARGET·음수 입력 테스트를 구현했다.
 
 ## Metric Preconditions and Result States
 

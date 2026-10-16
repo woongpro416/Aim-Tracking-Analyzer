@@ -26,6 +26,24 @@ def calculate_off_target_metrics(intervals: list[dict]) -> dict:
     }
 
 
+def calculate_observed_on_target_ratio(
+        on_target_frame_count: int,
+        off_target_frame_count: int,
+) -> float | None:
+    if on_target_frame_count < 0 or off_target_frame_count < 0:
+        raise ValueError("조준,오조준의 Frame 값은 음수가 될 수 없습니다.")
+
+    observed_frame_count = on_target_frame_count + off_target_frame_count
+
+    if observed_frame_count == 0:
+        return None
+
+    on_target_ratio = (on_target_frame_count / observed_frame_count)
+
+    return on_target_ratio
+
+
+
 if __name__ == "__main__":
     sample_intervals = [
         {"off_target_frame_count": 2,
@@ -36,3 +54,5 @@ if __name__ == "__main__":
 
     print(calculate_off_target_metrics(sample_intervals))
     print(calculate_off_target_metrics([]))
+    print(calculate_observed_on_target_ratio(3, 1))
+    print(calculate_observed_on_target_ratio(0, 0))

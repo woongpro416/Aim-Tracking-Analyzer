@@ -1,6 +1,6 @@
 # Vision-based Aim Tracking Analyzer
 
-에임 트레이너 녹화 영상에서 Target 위치와 조준 상태 변화를 기록하는 개인 포트폴리오 프로젝트입니다. Python·OpenCV 기반 로컬 분석 코어를 구현했으며, **2026-10-13 Phase 2 — Target Detection & Trajectory를 완료했습니다.** 다음 단계는 Phase 3 — Tracking Metrics입니다.
+에임 트레이너 녹화 영상에서 Target 위치와 조준 상태 변화를 기록하는 개인 포트폴리오 프로젝트입니다. Python·OpenCV 기반 로컬 분석 코어를 구현했으며, Phase 2 — Target Detection & Trajectory와 Phase 3의 기초 Tracking Metrics 실제 Run 검증을 완료했습니다.
 
 ## Problem — 해결하려는 문제
 
@@ -10,13 +10,15 @@
 
 현재 MVP 영상의 밝은 청록색 Target을 HSV로 분리하고, **5×5 Closing + Top-strip Filter**로 후보를 정리합니다. 후보가 정확히 하나일 때만 Target을 결정합니다. 화면 중앙 Crosshair가 선택된 Contour 안에 있는지 확인하고, 전체 Run의 관찰값과 상태 목록을 반환합니다.
 
-영상 입력 검증, 순차 디코딩, Run 구간 처리, Target 위치 기록, 상태 분류 및 검증 도구까지 구현했습니다. Phase 3에서는 연속 OFF_TARGET 관측 구간의 묶기·지속 시간과 기초 Run Metric을 구현하고 Synthetic Sequence로 검증했습니다. 실제 3600 Frame과의 정합성 확인은 다음 작업입니다. Recovery·방향별 Metric·Score와 Web/API는 후속 범위입니다.
+영상 입력 검증, 순차 디코딩, Run 구간 처리, Target 위치 기록, 상태 분류 및 검증 도구까지 구현했습니다. Phase 3에서는 연속 OFF_TARGET 관측 구간의 묶기·지속 시간과 기초 Run Metric을 구현하고 Synthetic Sequence 및 실제 3600 Frame에서 검증했습니다. Recovery·방향별 Metric·Score와 Web/API는 후속 범위입니다.
 
 ## My Role — 직접 구현과 AI 지원
 
 - 직접 구현: 영상 입력 검증, 순차 디코딩, Frame 시간·Run 구간 처리, HSV·Contour·Bounding Box·Center 흐름, 상태 분류와 집계, 최초 ON_TARGET 경계.
 - 직접 검증·결정: 원본 Frame의 수동 Ground Truth 18개, Baseline 집계 연결, 최종 Closing+Top-strip 정책 선택과 환경 제약 승인.
 - Phase 3 직접 구현: MISSING 경계 계약과 `off_target_interval` 명명, 구간 묶기·Duration·Run Metric 계산, 작은 입력과 테스트 실행.
+- Day 14 직접 구현: 저장된 Production JSON을 구간·Metrics 함수에 연결하고, Frame 합계·시간·구간 경계·종료 원인·Frame 번호 목록의 일치를 검증하는 개발용 스크립트 작성.
+- 관측 구간 조준 일치율 직접 구현: `None` 경계·음수 입력 검사를 포함한 비율 계산 함수, 작은 입력 테스트, 저장된 Production Summary 연결.
 - AI 지원: 개념 설명과 코드 Review, 공통 로직 재사용, 반복 비교·변경 기록·표본 선정·보고서·추가 테스트, 승인 후 Production 반영·정리·문서화.
 
 학습한 코드를 설명하고 검증하는 것을 목표로 하는 AI-assisted development 프로젝트입니다.
@@ -106,6 +108,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe src/validate_production_run.py
 .\.venv\Scripts\python.exe src/inspect_run_baselines.py
+.\.venv\Scripts\python.exe src/inspect_tracking_metrics.py
 ```
 
 2026-10-13 최종 검증:
@@ -132,7 +135,11 @@ python -m venv .venv
 
 Baseline 비교는 기본 실행에서 이미지를 재생성하지 않습니다. 필요할 때만 `src/inspect_run_baselines.py --export-images`로 원본·Crop을 생성합니다. 자세한 기록은 [Day 12 종료 기록](docs/workflow/day12_detection_validation_and_phase2_closeout.md), [검증 보고서](docs/06_validation_report.md)에 있습니다.
 
-2026-10-14 Phase 3의 Synthetic Test는 구간 처리 4개와 Metric 집계 2개를 각각 실행해 통과했습니다. 새 변경 이후 전체 회귀 테스트와 실제 3600 Frame 정합성 검증은 아직 수행하지 않았습니다. 계약과 학습 내용은 [Day 13 작업일지](docs/workflow/day13_off_target_intervals_and_metrics.md)에 기록했습니다.
+2026-10-14 Phase 3의 Synthetic Test는 구간 처리 4개와 Metric 집계 2개를 각각 실행해 통과했습니다. 계약과 학습 내용은 [Day 13 작업일지](docs/workflow/day13_off_target_intervals_and_metrics.md)에 기록했습니다.
+
+2026-10-16 Day 14 검증: 전체 회귀 테스트 **59 passed**. 저장된 Production 결과의 3600개 상태에서 OFF_TARGET 구간 **94개**, 총 **1000 Frame**, 누적 **16.6667초**, 평균 구간 **0.1773초**를 확인했습니다. 종료 원인은 `ON_TARGET` 94개, `MISSING` 0개, `RUN_END` 0개입니다. 원본 상태 목록과 구간 목록이 가리키는 OFF_TARGET Frame 번호 전체가 순서까지 일치합니다. `src/inspect_tracking_metrics.py`는 저장된 JSON을 읽는 개발용 검증 스크립트이며 구간 함수의 Frame별 로그도 출력합니다.
+
+관측 구간 조준 일치율 구현 후 전체 회귀 테스트는 **65 passed**입니다. 기본·관측 없음·전체 OFF_TARGET·음수 입력을 검증했습니다. 저장된 Production Summary의 `ON_TARGET=2319`, `OFF_TARGET=1000`에서 `2319 / 3319 = 0.698704429044893`을 확인했습니다. `MISSING=281`은 분모에 포함하지 않습니다.
 
 ## Limitations — 검증 범위와 한계
 
@@ -143,6 +150,6 @@ Baseline 비교는 기본 실행에서 이미지를 재생성하지 않습니다
 - `read() == False`만으로 정상 EOF와 Decode 실패를 구분하지 않습니다. 메타데이터 오류·Unsupported FPS의 모든 실패 경로를 실제 입력으로 검증하지는 않았습니다.
 - Shape Filter와 Hough Circle은 Deferred입니다. 궤적은 검출된 중심 좌표 기록이며 MISSING 보간·방향 추정은 구현하지 않았습니다.
 
-## Next Steps — Phase 3
+## Next Steps — Phase 3 이후
 
-연속 OFF_TARGET 관측 구간의 도메인 이름은 `off_target_interval`입니다. ON_TARGET 또는 MISSING을 만나면 구간을 종료하며, Run 끝까지 OFF_TARGET이면 마지막 Frame까지 포함합니다. MISSING 종료를 조준 회복 성공으로 해석하지 않습니다. 구간 Duration과 기초 Run Metric까지 구현했으며, 다음에는 실제 3600 Frame 입력에서 OFF_TARGET 1000 Frame의 정합성과 전체 회귀 테스트를 확인합니다. 추가 검출 튜닝·Shape Filter·Hough 도입은 이번 범위에 포함하지 않습니다.
+연속 OFF_TARGET 관측 구간의 도메인 이름은 `off_target_interval`입니다. ON_TARGET 또는 MISSING을 만나면 구간을 종료하며, Run 끝까지 OFF_TARGET이면 마지막 Frame까지 포함합니다. MISSING 종료를 조준 회복 성공으로 해석하지 않습니다. 관측 구간 조준 일치율은 `ON_TARGET / (ON_TARGET + OFF_TARGET)`로 계산하고 관측 Frame이 없으면 `None`을 반환합니다. `MISSING`은 분모에서 제외합니다. 방향별 분석 전에는 MISSING 경계, Target 교체 가능성, 이동 방향 판정 기준을 정해야 합니다. 추가 검출 튜닝·Shape Filter·Hough 도입은 이번 범위에 포함하지 않습니다.
